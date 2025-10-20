@@ -1,0 +1,72 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Backfill Historical",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.backfill_historical",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Backfill: Nifty + Indices (1m 300)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.backfill_historical",
+            "args": [
+                "--inputs",
+                "nifty,indices",
+                "--timeframe",
+                "1m",
+                "--limit",
+                "10000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python Debugger: FastAPI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "main:app",
+                "--reload"
+            ],
+            "jinja": true
+        },
+        {
+            "name": "Backtest: Nifty 5m (Mar 1-10)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.backtest_strategy",
+            "justMyCode": true,
+            "args": [
+                "--symbols",
+                "nifty",
+                "--start",
+                "2025-03-01",
+                "--end",
+                "2025-03-10",
+                "--timeframe",
+                "5m",
+                "--csv",
+                "summary.csv",
+                "--equity",
+                "equity.csv"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}

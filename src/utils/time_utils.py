@@ -1,0 +1,18 @@
+from datetime import datetime, timezone
+import pytz
+
+IST = pytz.timezone('Asia/Kolkata')
+
+def to_ist(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST)
+
+def parse_timestamp(ltt: str) -> str:
+    """Parse timestamp from message or use current time."""
+    try:
+        if ltt and str(ltt).isdigit():
+            return datetime.fromtimestamp(int(ltt) / 1000).isoformat()
+    except (ValueError, OSError):
+        pass
+    return datetime.now().isoformat()
