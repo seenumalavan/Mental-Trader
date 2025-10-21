@@ -27,7 +27,7 @@ async def test_manager_basic():
     collected = []
     cfg = {"OPTION_ENABLE": True, "OPTION_RISK_CAP_PER_TRADE": 10000}
     mgr = OptionsManager(provider, cfg, lambda s: _collector(collected, s))
-    await mgr.publish_underlying_signal(symbol="NIFTY", side="BUY", price=24005, timeframe="1m", origin="scalper")
+    await mgr.publish_underlying_signal(symbol="Nifty 50", side="BUY", price=24005, timeframe="1m", origin="scalper")
     assert collected, "No option signal emitted"
     assert collected[0].contract_symbol.startswith("NIFTY_C_"), "Expected call option for BUY side"
 

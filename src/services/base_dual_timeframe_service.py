@@ -135,8 +135,9 @@ class DualTimeframeServiceBase:
         if settings.OPTION_ENABLE:
             chain_provider = OptionsChainProvider(self.rest, instrument_symbol="Nifty 50")
             async def emit_option(opt_signal):
-                # For now just log and notify; executor for options not yet implemented
+                # Execute, persist, notify
                 logger.info("OptionSignal emitted %s %s lots=%s", opt_signal.contract_symbol, opt_signal.underlying_side, opt_signal.suggested_size_lots)
+                await self.executor.handle_option_signal(opt_signal)
                 await self.notifier.notify_signal(opt_signal)
             self.options_manager = OptionsManager(chain_provider, config={
                 'OPTION_ENABLE': settings.OPTION_ENABLE,
@@ -170,6 +171,14 @@ class DualTimeframeServiceBase:
         logger.info("Service stopped")
 
     async def _on_tick(self, tick: Dict[str, Any]):
+        # First, forward tick to execution monitoring (underlying & option positions)
+        try:
+            if hasattr(self, 'executor') and self.executor:
+                await self.executor.monitor_underlying_positions(tick)
+                await self.executor.monitor_option_positions(tick)
+        except Exception:
+            logger.exception("Executor monitoring failed for tick %s", tick.get('symbol'))
+
         closed = self.bar_builder.push_tick(tick)
         for symbol, tf, bar in closed:
             key = self.symbol_to_key.get(symbol, symbol)

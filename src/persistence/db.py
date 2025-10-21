@@ -65,6 +65,10 @@ if DATABASE_AVAILABLE:
         Column('stop_loss_premium', Float),
         Column('target_premium', Float),
         Column('reasoning', String),
+        Column('entry_order_id', String),
+        Column('stop_order_id', String),
+        Column('target_order_id', String),
+        Column('status', String, default='OPEN'),
         Column('created_at', DateTime, server_default=text('now()'))
     )
 else:
@@ -242,6 +246,17 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to insert trade: {e}")
 
+    async def update_trade_status(self, trade_id: str, status: str):
+        if not self._connected or not self.engine or trades is None:
+            return
+        try:
+            with self.engine.connect() as conn:
+                stmt = trades.update().where(trades.c.id == trade_id).values(status=status)
+                conn.execute(stmt)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update trade status: {e}")
+
     async def insert_option_trade(self, opt_signal):
         if not self._connected or not self.engine or option_trades is None:
             return
@@ -249,6 +264,10 @@ class Database:
             import uuid
             trade_id = str(uuid.uuid4())
             reasoning_str = ";".join(opt_signal.reasoning) if getattr(opt_signal, 'reasoning', None) else ''
+            entry_id = getattr(opt_signal, 'entry_order_id', None)
+            stop_id = getattr(opt_signal, 'stop_order_id', None)
+            target_id = getattr(opt_signal, 'target_order_id', None)
+            status_val = getattr(opt_signal, 'status', 'OPEN')
             query = option_trades.insert().values(
                 id=trade_id,
                 contract_symbol=opt_signal.contract_symbol,
@@ -259,10 +278,25 @@ class Database:
                 size_lots=opt_signal.suggested_size_lots,
                 stop_loss_premium=opt_signal.stop_loss_premium,
                 target_premium=opt_signal.target_premium,
-                reasoning=reasoning_str
+                reasoning=reasoning_str,
+                entry_order_id=entry_id,
+                stop_order_id=stop_id,
+                target_order_id=target_id,
+                status=status_val
             )
             with self.engine.connect() as conn:
                 conn.execute(query)
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to insert option trade: {e}")
+
+    async def update_option_trade_status(self, contract_symbol: str, status: str):
+        if not self._connected or not self.engine or option_trades is None:
+            return
+        try:
+            with self.engine.connect() as conn:
+                stmt = option_trades.update().where(option_trades.c.contract_symbol == contract_symbol).values(status=status)
+                conn.execute(stmt)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update option trade status: {e}")

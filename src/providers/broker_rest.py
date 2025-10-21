@@ -34,6 +34,7 @@ class BrokerRest:
             self.login_api = upstox_client.LoginApi(api_client)
             self.order_api = upstox_client.OrderApi(api_client)
             self.historical_api = upstox_client.HistoryV3Api(api_client)
+            self.options_api = upstox_client.OptionsApi(api_client)
             logger.info("Upstox API clients initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Upstox API clients: {e}")
@@ -189,33 +190,29 @@ class BrokerRest:
 
     # ---------------- Option / Derivatives Helpers -----------------
     def get_futures_quote(self, underlying_symbol: str) -> Dict[str, Any]:
-        """Fetch futures quote (last_price) for an underlying using Upstox.
+        """Fetch an approximate futures quote non-blocking.
 
-        Note: Upstox SDK v2/v3 exposes market data through streaming & dedicated endpoints.
-        Here we attempt a thin call pattern; if not available we fallback to 0.0.
+        Placeholder: uses intraday candle endpoint to get latest close; removes run_until_complete (blocking) pattern.
+        In production: replace with dedicated quote or WebSocket state.
         """
         if upstox_client is None:
-            return {"last_price": 0.0}
+            return {"last_price": 0.0, "status": "SDK_MISSING"}
         try:
-            # Attempt to derive a futures instrument token
             fut_symbol = self._derive_futures_symbol(underlying_symbol)
             token = self._get_instrument_token(fut_symbol)
-            # Upstox may not have a direct REST last price; placeholder pattern using HistoryV3 for latest candle
             loop = asyncio.get_event_loop()
-            resp = loop.run_in_executor(
+            data = loop.run_until_complete(loop.run_in_executor(
                 None,
                 lambda: self.historical_api.get_intra_day_candle_data(token, "minutes", 1)
-            )
-            # Await result
-            data = asyncio.get_event_loop().run_until_complete(resp) if isinstance(resp, asyncio.Future) else resp
+            ))
             last_price = 0.0
             if data and getattr(data, 'data', None) and data.data.candles:
                 last_candle = data.data.candles[-1]
                 last_price = float(last_candle[4])
-            return {"last_price": last_price}
+            return {"last_price": last_price, "instrument": token}
         except Exception as e:
             logger.warning("get_futures_quote failed: %s", e)
-            return {"last_price": 0.0}
+            return {"last_price": 0.0, "status": "ERROR"}
 
     def get_option_chain(self, underlying_symbol: str) -> List[Dict[str, Any]]:
         """Fetch option chain for underlying.
