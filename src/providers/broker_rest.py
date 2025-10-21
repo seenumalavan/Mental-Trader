@@ -1,7 +1,9 @@
 import logging
 from typing import List, Dict, Any
+from datetime import datetime
 import asyncio
 import math
+import pandas as pd
 import upstox_client
 from upstox_client import ApiClient, MarketDataStreamerV3
 from src.utils.instruments import get_symbol_to_key_mapping
@@ -184,6 +186,94 @@ class BrokerRest:
     async def close(self):
         """Close any resources."""
         pass
+
+    # ---------------- Option / Derivatives Helpers -----------------
+    def get_futures_quote(self, underlying_symbol: str) -> Dict[str, Any]:
+        """Fetch futures quote (last_price) for an underlying using Upstox.
+
+        Note: Upstox SDK v2/v3 exposes market data through streaming & dedicated endpoints.
+        Here we attempt a thin call pattern; if not available we fallback to 0.0.
+        """
+        if upstox_client is None:
+            return {"last_price": 0.0}
+        try:
+            # Attempt to derive a futures instrument token
+            fut_symbol = self._derive_futures_symbol(underlying_symbol)
+            token = self._get_instrument_token(fut_symbol)
+            # Upstox may not have a direct REST last price; placeholder pattern using HistoryV3 for latest candle
+            loop = asyncio.get_event_loop()
+            resp = loop.run_in_executor(
+                None,
+                lambda: self.historical_api.get_intra_day_candle_data(token, "minutes", 1)
+            )
+            # Await result
+            data = asyncio.get_event_loop().run_until_complete(resp) if isinstance(resp, asyncio.Future) else resp
+            last_price = 0.0
+            if data and getattr(data, 'data', None) and data.data.candles:
+                last_candle = data.data.candles[-1]
+                last_price = float(last_candle[4])
+            return {"last_price": last_price}
+        except Exception as e:
+            logger.warning("get_futures_quote failed: %s", e)
+            return {"last_price": 0.0}
+
+    def get_option_chain(self, underlying_symbol: str) -> List[Dict[str, Any]]:
+        """Fetch option chain for underlying.
+
+        Returns list of dicts: symbol, strike, type, expiry, oi, iv, ltp, bid, ask
+        Upstox REST does not always provide full chain in one call; typical approach is:
+          1. Resolve instrument tokens for strikes (pre-generated list or search endpoint).
+          2. Query market data for each token.
+        Here we provide a scaffold with graceful fallback until full integration.
+        """
+        if upstox_client is None:
+            return []
+        try:
+            # Placeholder: derive a small synthetic chain around ATM for demo until full mapping is available.
+            spot_info = self.get_futures_quote(underlying_symbol)
+            spot = spot_info.get('last_price', 0.0)
+            if spot <= 0:
+                spot = 0.0
+            # Determine ATM strike rounding to nearest 50
+            atm = int(round(spot / 50.0) * 50) if spot > 0 else 0
+            strikes = [atm - 50, atm, atm + 50] if atm > 0 else []
+            chain: List[Dict[str, Any]] = []
+            for strike in strikes:
+                for opt_type in ("CALL", "PUT"):
+                    # Synthetic symbol pattern (needs real mapping): e.g. NIFTY24OCT{strike}{CE/PE}
+                    suffix = "CE" if opt_type == "CALL" else "PE"
+                    symbol = f"{underlying_symbol.upper()}_OPT_{strike}{suffix}"
+                    # Placeholder values (would come from market data api)
+                    ltp = max(1.0, abs(atm - strike) * 0.4 + (10 if opt_type == 'CALL' else 9))
+                    bid = ltp - 0.5
+                    ask = ltp + 0.5
+                    oi = 100000 + (strike - atm) * 200 if opt_type == 'CALL' else 95000 + (atm - strike) * 180
+                    iv = 12.0 + ((strike - atm) / 1000.0)
+                    chain.append({
+                        'symbol': symbol,
+                        'strike': strike,
+                        'type': opt_type,
+                        'expiry': pd.datetime.now().strftime('%Y-%m-%d'),
+                        'oi': max(int(oi), 1000),
+                        'iv': max(iv, 5.0),
+                        'ltp': ltp,
+                        'bid': bid,
+                        'ask': ask
+                    })
+            return chain
+        except Exception as e:
+            logger.warning("get_option_chain failed: %s", e)
+            return []
+
+    def _derive_futures_symbol(self, underlying_symbol: str) -> str:
+        """Derive a futures symbol token placeholder from an underlying equity/index symbol.
+
+        For NIFTY use an approximate token name pattern; real implementation should map using instrument file.
+        """
+        # Simple heuristic (to be replaced with actual mapping):
+        if underlying_symbol.lower() in ("nifty", "nifty 50", "nifty50"):
+            return "NSE_INDEX|Nifty 50"  # Example mapping key
+        return underlying_symbol
 
     def _calculate_date_range(self, timeframe: str, limit: int) -> tuple:
         """Calculate from_date and to_date based on timeframe & desired candles.

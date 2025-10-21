@@ -52,11 +52,27 @@ if DATABASE_AVAILABLE:
         Column('status', String),
         Column('created_at', DateTime, server_default=text('now()'))
     )
+
+    option_trades = Table(
+        'option_trades', metadata,
+        Column('id', String, primary_key=True),
+        Column('contract_symbol', String),
+        Column('underlying_side', String),
+        Column('strike', Integer),
+        Column('kind', String),
+        Column('premium_ltp', Float),
+        Column('size_lots', Integer),
+        Column('stop_loss_premium', Float),
+        Column('target_premium', Float),
+        Column('reasoning', String),
+        Column('created_at', DateTime, server_default=text('now()'))
+    )
 else:
     metadata = None
     candles = None
     ema_state = None  
     trades = None
+    option_trades = None
 
 class Database:
     def __init__(self, url: str):
@@ -225,3 +241,28 @@ class Database:
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to insert trade: {e}")
+
+    async def insert_option_trade(self, opt_signal):
+        if not self._connected or not self.engine or option_trades is None:
+            return
+        try:
+            import uuid
+            trade_id = str(uuid.uuid4())
+            reasoning_str = ";".join(opt_signal.reasoning) if getattr(opt_signal, 'reasoning', None) else ''
+            query = option_trades.insert().values(
+                id=trade_id,
+                contract_symbol=opt_signal.contract_symbol,
+                underlying_side=opt_signal.underlying_side,
+                strike=opt_signal.strike,
+                kind=opt_signal.kind,
+                premium_ltp=opt_signal.premium_ltp,
+                size_lots=opt_signal.suggested_size_lots,
+                stop_loss_premium=opt_signal.stop_loss_premium,
+                target_premium=opt_signal.target_premium,
+                reasoning=reasoning_str
+            )
+            with self.engine.connect() as conn:
+                conn.execute(query)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to insert option trade: {e}")

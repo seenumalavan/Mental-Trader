@@ -16,3 +16,7 @@ def parse_timestamp(ltt: str) -> str:
     except (ValueError, OSError):
         pass
     return datetime.now().isoformat()
+
+def now_ist() -> datetime:
+    """Return current time in IST as naive datetime (no tzinfo)."""
+    return datetime.utcnow().astimezone(IST).replace(tzinfo=None)

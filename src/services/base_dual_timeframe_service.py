@@ -13,6 +13,8 @@ from src.engine.ema import EMAState
 from src.execution.execution import Executor
 from src.services.notifier import Notifier
 from src.auth.token_store import get_token
+from src.options.options_manager import OptionsManager
+from src.providers.options_chain_provider import OptionsChainProvider
 
 logger = logging.getLogger("dual_service")
 
@@ -58,6 +60,7 @@ class DualTimeframeServiceBase:
         self.notifier = Notifier(settings.NOTIFIER_WEBHOOK)
         self.strategy = None
         self._running = False
+        self.options_manager = None  # Will hold OptionsManager if enabled
 
     async def start(self, instrument_input=None):
         if self._running:
@@ -128,6 +131,24 @@ class DualTimeframeServiceBase:
         await self.ws.subscribe(keys)
         self.ws.on_tick = self._on_tick
         self.strategy = self.build_strategy()
+        # Initialize shared OptionsManager if enabled
+        if settings.OPTION_ENABLE:
+            chain_provider = OptionsChainProvider(self.rest, instrument_symbol="Nifty 50")
+            async def emit_option(opt_signal):
+                # For now just log and notify; executor for options not yet implemented
+                logger.info("OptionSignal emitted %s %s lots=%s", opt_signal.contract_symbol, opt_signal.underlying_side, opt_signal.suggested_size_lots)
+                await self.notifier.notify_signal(opt_signal)
+            self.options_manager = OptionsManager(chain_provider, config={
+                'OPTION_ENABLE': settings.OPTION_ENABLE,
+                'OPTION_LOT_SIZE': settings.OPTION_LOT_SIZE,
+                'OPTION_RISK_CAP_PER_TRADE': settings.OPTION_RISK_CAP_PER_TRADE,
+                'OPTION_OI_MIN_PERCENTILE': settings.OPTION_OI_MIN_PERCENTILE,
+                'OPTION_SPREAD_MAX_PCT_SCALPER': settings.OPTION_SPREAD_MAX_PCT_SCALPER,
+                'OPTION_SPREAD_MAX_PCT_INTRADAY': settings.OPTION_SPREAD_MAX_PCT_INTRADAY,
+                'OPTION_DEBOUNCE_SEC': settings.OPTION_DEBOUNCE_SEC,
+                'OPTION_DEBOUNCE_INTRADAY_SEC': settings.OPTION_DEBOUNCE_INTRADAY_SEC,
+                'OPTION_COOLDOWN_SEC': settings.OPTION_COOLDOWN_SEC,
+            }, emit_callback=emit_option)
         self._running = True
         logger.info("Service started primary=%s confirm=%s", self.primary_tf, self.confirm_tf)
 

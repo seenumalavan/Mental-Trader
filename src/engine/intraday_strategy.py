@@ -55,6 +55,8 @@ class IntradayStrategy:
             signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
             await self.service.executor.handle_signal(signal)
             await self.service.notifier.notify_signal(signal)
+            if self.service.options_manager:
+                await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="intraday")
         # Bearish crossover
         elif prev_short >= prev_long and curr_short < curr_long:
             if not trend_ok("SELL"):
@@ -71,3 +73,5 @@ class IntradayStrategy:
             signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
             await self.service.executor.handle_signal(signal)
             await self.service.notifier.notify_signal(signal)
+            if self.service.options_manager:
+                await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="intraday")

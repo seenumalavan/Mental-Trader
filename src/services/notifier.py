@@ -34,29 +34,37 @@ class Notifier:
             logger.exception("SMTP send failed")
 
     async def notify_signal(self, signal):
-        msg = {
-            "symbol": signal.symbol,
-            "side": signal.side,
-            "price": signal.price,
-            "size": signal.size,
-            "sl": signal.stop_loss,
-            "tg": signal.target
-        }
+        # Support underlying Signal or OptionSignal
+        if hasattr(signal, 'contract_symbol'):
+            msg = {
+                "contract_symbol": signal.contract_symbol,
+                "underlying_side": signal.underlying_side,
+                "strike": signal.strike,
+                "kind": signal.kind,
+                "premium_ltp": signal.premium_ltp,
+                "lots": signal.suggested_size_lots,
+                "stop_loss_premium": signal.stop_loss_premium,
+                "target_premium": signal.target_premium
+            }
+            email_subject = f"Option Signal {signal.underlying_side} {signal.contract_symbol}"
+        else:
+            msg = {
+                "symbol": signal.symbol,
+                "side": signal.side,
+                "price": signal.price,
+                "size": signal.size,
+                "sl": signal.stop_loss,
+                "tg": signal.target
+            }
+            email_subject = f"Trade Signal {signal.side} {signal.symbol}"
         if not self.webhook:
             logger.info("Signal: %s", msg)
-            # still send email if configured
             if self.smtp_enabled:
-                await self._send_email(
-                    subject=f"Trade Signal {signal.side} {signal.symbol}",
-                    body=f"Signal: {msg}"
-                )
+                await self._send_email(subject=email_subject, body=f"Signal: {msg}")
             return
         try:
             await self.client.post(self.webhook, json=msg)
             if self.smtp_enabled:
-                await self._send_email(
-                    subject=f"Trade Signal {signal.side} {signal.symbol}",
-                    body=f"Signal: {msg}"
-                )
+                await self._send_email(subject=email_subject, body=f"Signal: {msg}")
         except Exception:
             logger.exception("Notifier failed")
