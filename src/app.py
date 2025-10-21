@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
         
         # Initialize service on startup
         try:
-            await service.start("nifty")
+            await service.start(["indices"])
             logger.info("Trading service started successfully")
         except Exception as e:
             logger.error(f"Failed to start trading service: {e}")

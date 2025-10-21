@@ -18,7 +18,7 @@ def test_imports():
         # Engine components
         ("Bar Builder", "from src.engine.bar_builder import BarBuilder, Bar"),
         ("EMA", "from src.engine.ema import EMAState"),
-        ("Strategy", "from src.engine.strategy import ScalpStrategy"),
+        ("Strategy", "from src.engine.scalping_strategy import ScalpStrategy"),
         
         # Execution
         ("Execution", "from src.execution.execution import Executor, Signal"),

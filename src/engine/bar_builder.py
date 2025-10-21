@@ -18,7 +18,7 @@ class Bar:
 
 class BarBuilder:
     """
-    Build 1m and 5m bars from incoming ticks.
+    Build 1m, 5m, and 15m bars from incoming ticks.
     push_tick returns list of closed bars: [(symbol,timeframe,Bar), ...]
     """
     def __init__(self):
@@ -41,6 +41,9 @@ class BarBuilder:
         if timeframe == "5m":
             minute = (dt.minute // 5) * 5
             return dt.replace(minute=minute, second=0, microsecond=0)
+        if timeframe == "15m":
+            minute = (dt.minute // 15) * 15
+            return dt.replace(minute=minute, second=0, microsecond=0)
         return dt.replace(second=0, microsecond=0)
 
     def push_tick(self, tick) -> List[Tuple[str,str,Bar]]:
@@ -50,7 +53,7 @@ class BarBuilder:
         ts = tick.get("ts")
         dt = self._to_dt(ts)
         closed = []
-        for tf in ("1m", "5m"):
+        for tf in ("1m", "5m", "15m"):
             key = (symbol, tf)
             bucket = self._bucket(dt, tf)
             cur = self._current.get(key)

@@ -60,7 +60,7 @@ class BrokerRest:
             logger.error(f"Connection failed: {e}")
             return False
 
-    async def fetch_historical(self, symbol: str, timeframe: str = "1m", limit: int = 300) -> List[Dict]:
+    async def fetch_historical(self, symbol: str, timeframe: str = "1m", limit: int = 375) -> List[Dict]:
         """Fetch historical candle data from Upstox."""           
         try:
             # Convert interval format (1m -> interval=1, unit=minute)
@@ -85,7 +85,8 @@ class BrokerRest:
             
             candles = []
             if response.data and response.data.candles:
-                for candle in response.data.candles[-limit:]:  # Get last 'limit' candles
+                # for candle in response.data.candles[-limit:] # Get last 'limit' candles
+                for candle in response.data.candles:  # Get last 'limit' candles
                     candles.append({
                         "ts": candle[0],  # timestamp
                         "open": float(candle[1]),

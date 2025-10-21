@@ -147,3 +147,34 @@ This project is for educational and development purposes. Please ensure complian
 ## Support
 
 For issues and questions, please check the logs and ensure all environment variables are properly configured.
+
+
+
+            +----------------+
+            |  config.py     |
+            +--------+-------+
+                     |
+        start()      v
++--------------------------+     historical/intraday       +--------------------+
+|    ScalperService        +------------------------------->+   BrokerRest       |
+|                          |                                +--------------------+
+|  resolve_instruments     |     ticks subscribe            +--------------------+
+|  seed EMA states         +------------------------------->+    BrokerWS        |
+|  set ws.on_tick          |                                +--------------------+
++-------------+------------+
+              |
+              | on_tick(tick)
+              v
+       +--------------+     closed bars      +-----------------+
+       |  BarBuilder  +--------------------->+  EMAState(1m)   |
+       +------+-------+                      +-----------------+
+              |                                  |
+              |                                  v
+              |                             ScalpStrategy
+              |                                  |
+              |                             Signal (BUY/SELL)
+              |                                  v
+              |                             Executor -> BrokerRest.place_order()
+              |                                  |
+              v                                  v
+        Database.persist_candle()         Notifier.notify_signal()
