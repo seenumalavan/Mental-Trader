@@ -1,6 +1,8 @@
 import time
 from typing import List, Dict
 from datetime import datetime
+
+import pandas as pd
 from src.models.option_models import OptionContract
 from src.utils.time_utils import now_ist
 import logging
@@ -37,7 +39,7 @@ class OptionsChainProvider:
                 strike = int(item["strike"])
                 kind = item["type"].upper()  # CALL/PUT
                 expiry_val = item.get("expiry")
-                expiry = datetime.fromisoformat(expiry_val) if isinstance(expiry_val, str) else ts_now
+                expiry = pd.to_datetime(expiry_val) if isinstance(expiry_val, str) else ts_now
                 oi = int(item.get("oi", 0))
                 iv = float(item.get("iv", 0.0))
                 ltp = float(item.get("ltp", 0.0))
