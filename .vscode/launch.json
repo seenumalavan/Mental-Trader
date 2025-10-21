@@ -67,6 +67,29 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "Backtest: Scalper Service (Nifty RELIANCE Mar 1-7)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.backtest_scalper_service",
+            "justMyCode": true,
+            "args": [
+                "--symbols",
+                "ITC(ITC)",
+                "--start",
+                "2025-03-01",
+                "--end",
+                "2025-03-30",
+                "--limit",
+                "5000",
+                "--report",
+                "scalper_report.json"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

@@ -15,6 +15,7 @@ from src.services.notifier import Notifier
 from src.auth.token_store import get_token
 from src.options.options_manager import OptionsManager
 from src.providers.options_chain_provider import OptionsChainProvider
+from src.utils.time_utils import IST, to_ist
 
 logger = logging.getLogger("dual_service")
 
@@ -80,11 +81,29 @@ class DualTimeframeServiceBase:
             if not candles_primary:
                 candles_primary = await self.rest.fetch_historical(key, self.primary_tf, limit=self.warmup_bars)
                 if candles_primary:
+                    for idx, ic in enumerate(candles_primary):
+                        candles_primary[idx] = {
+                            'symbol': symbol,
+                            'instrument_key': key,
+                            'timeframe': self.primary_tf,
+                            **ic
+                        }
                     await self.db.persist_candles_bulk(symbol, key, self.primary_tf, candles_primary)
             intraday = await self.rest.fetch_intraday(key, self.primary_tf)
             if intraday:
                 await self.db.persist_candles_bulk(symbol, key, self.primary_tf, intraday)
-                seen = {c['ts'] if isinstance(c, dict) else c.ts for c in candles_primary}
+                # Deduplicate by timestamp string (already normalized)
+                # Enrich each intraday candle with metadata for consistency
+                # Ensure metadata columns (symbol, instrument_key, timeframe) occupy positions 0,1,2
+                # by rebuilding each candle dict with ordered keys.
+                for idx, ic in enumerate(intraday):
+                    intraday[idx] = {
+                        'symbol': symbol,
+                        'instrument_key': key,
+                        'timeframe': self.primary_tf,
+                        **ic
+                    }
+                seen = {c['ts'] if isinstance(c, dict) else getattr(c, 'ts', None) for c in candles_primary}
                 for ic in intraday:
                     if ic['ts'] not in seen:
                         candles_primary.append(ic)
@@ -95,15 +114,15 @@ class DualTimeframeServiceBase:
                 if m_c % m_p == 0 and candles_primary:
                     try:
                         df = pd.DataFrame(candles_primary)
-                        # Parse timestamps as naive local time (data already stored in local timezone).
-                        df['ts'] = pd.to_datetime(df['ts'], errors='coerce')
-                        df = df.dropna(subset=['ts'])  # drop unparsable rows
-                        df = df.set_index('ts').sort_index()
+                        # Create a parsed_ts series for resampling without overwriting original raw ts values
+                        df['parsed_ts'] = pd.to_datetime(df['ts'], errors='coerce', utc=False)
+                        df = df.dropna(subset=['parsed_ts'])
+                        df = df.set_index('parsed_ts').sort_index()
                         rule = f'{m_c}T'
                         agg = df.resample(rule).agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum'}).dropna(subset=['open','close'])
-                        # Use naive current local time for completeness check
-                        # Use pandas Timestamps uniformly for comparison to avoid type mismatch
-                        now_ts = pd.Timestamp.now()  # naive local timestamp as pandas Timestamp
+                        # Use timezone-aware current IST time for completeness check
+                        # Ensures comparison with parsed (possibly offset-aware) index timestamps is consistent
+                        now_ts = pd.Timestamp.now(tz=IST)
                         interval = pd.Timedelta(minutes=m_c)
                         valid = []
                         for ts_idx, row in agg.iterrows():
@@ -133,7 +152,8 @@ class DualTimeframeServiceBase:
         self.strategy = self.build_strategy()
         # Initialize shared OptionsManager if enabled
         if settings.OPTION_ENABLE:
-            chain_provider = OptionsChainProvider(self.rest, instrument_symbol="Nifty 50")
+            # Defer instrument assignment; will update on first tick/bar using actual symbol/instrument_key.
+            chain_provider = OptionsChainProvider(self.rest)
             async def emit_option(opt_signal):
                 # Execute, persist, notify
                 logger.info("OptionSignal emitted %s %s lots=%s", opt_signal.contract_symbol, opt_signal.underlying_side, opt_signal.suggested_size_lots)
@@ -176,6 +196,11 @@ class DualTimeframeServiceBase:
             if hasattr(self, 'executor') and self.executor:
                 await self.executor.monitor_underlying_positions(tick)
                 await self.executor.monitor_option_positions(tick)
+            # Dynamically bind options chain provider instrument symbol once, using tick symbol if available.
+            if self.options_manager and self.options_manager.provider and not self.options_manager.provider.instrument_symbol:
+                sym = tick.get('instrument_key')
+                if sym:
+                    self.options_manager.provider.set_instrument(sym)
         except Exception:
             logger.exception("Executor monitoring failed for tick %s", tick.get('symbol'))
 
@@ -216,3 +241,5 @@ class DualTimeframeServiceBase:
 
     def build_strategy(self):
         raise NotImplementedError
+
+    # Normalization helper removed per request: keep raw ts values intact.

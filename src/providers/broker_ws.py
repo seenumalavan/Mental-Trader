@@ -143,6 +143,7 @@ class BrokerWS:
                 symbol = self.instrument_to_symbol.get(instrument_key, instrument_key.split("|")[-1])
                 tick = {
                     "symbol": symbol,
+                    "instrument_key": instrument_key,
                     "price": float(ltpc.get('ltp', 0.0)),
                     "volume": int(feed_data.get('vtt', 1)),
                     "ts": parse_timestamp(ltpc.get('ltt', ''))

@@ -15,12 +15,14 @@ logger = logging.getLogger("database")
 if DATABASE_AVAILABLE:
     metadata = MetaData()
 
+    # Store raw API timestamp (e.g. 2025-10-21T13:49:00+05:30) including offset without conversion.
+    # Using String instead of DateTime so the original timezone info is preserved exactly as received.
     candles = Table(
         'candles', metadata,
         Column('symbol', String, primary_key=True),
         Column('instrument_key', String, primary_key=True),
         Column('timeframe', String, primary_key=True),
-        Column('ts', DateTime, primary_key=True),
+        Column('ts', DateTime(timezone=True), primary_key=True),  # raw ISO8601 with offset
         Column('open', Float),
         Column('high', Float),
         Column('low', Float),

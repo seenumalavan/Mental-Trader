@@ -51,10 +51,8 @@ class OptionsManager:
             return
         mode = 'scalper' if origin == 'scalper' else 'intraday'
         debounce = int(self.cfg.get('OPTION_DEBOUNCE_SEC', 30)) if mode == 'scalper' else int(self.cfg.get('OPTION_DEBOUNCE_INTRADAY_SEC', 60))
-        if self.provider.last_snapshot_age() < debounce:
-            chain = list(self.provider._last_chain.values())
-        else:
-            chain = self.provider.fetch_option_chain()
+        # Always fetch fresh option chain upon underlying signal for immediate OI/IV data
+        chain = self.provider.fetch_option_chain()
         metrics = compute_chain_metrics(chain)
         ranked = rank_strikes(
             chain=chain,

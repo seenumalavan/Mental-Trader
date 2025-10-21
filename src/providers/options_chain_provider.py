@@ -11,15 +11,24 @@ logger = logging.getLogger("options_provider")
 
 class OptionsChainProvider:
     """Fetch futures price and option chain; keeps last snapshot for OI change and debounce."""
-    def __init__(self, rest_client, instrument_symbol: str = "Nifty 50"):
+    def __init__(self, rest_client, instrument_symbol: str = None):
         self.rest = rest_client
+        # Delay binding until first tick if not provided
         self.instrument_symbol = instrument_symbol
         self._last_chain: Dict[str, OptionContract] = {}
         self._last_fetch_ts: float = 0.0
 
+    def set_instrument(self, instrument_symbol: str):
+        """Update instrument symbol (e.g., from WebSocket tick instrument_key mapping)."""
+        if instrument_symbol and instrument_symbol != self.instrument_symbol:
+            logger.info("OptionsChainProvider instrument updated %s -> %s", self.instrument_symbol, instrument_symbol)
+            self.instrument_symbol = instrument_symbol
+
     def fetch_futures_price(self) -> float:
+        if not self.instrument_symbol:
+            return 0.0
         try:
-            data = self.rest.get_futures_quote(self.instrument_symbol)  # to implement in BrokerRest
+            data = self.rest.get_futures_quote(self.instrument_symbol)
             return float(data.get("last_price", 0.0))
         except Exception as e:
             logger.warning("Futures price fetch failed: %s", e)
@@ -27,8 +36,10 @@ class OptionsChainProvider:
 
     def fetch_option_chain(self) -> List[OptionContract]:
         ts_now = now_ist()
+        if not self.instrument_symbol:
+            return list(self._last_chain.values())
         try:
-            raw_chain = self.rest.get_option_chain(self.instrument_symbol)  # to implement in BrokerRest
+            raw_chain = self.rest.get_option_chain(self.instrument_symbol)
         except Exception as e:
             logger.warning("Option chain fetch failed: %s", e)
             return list(self._last_chain.values())

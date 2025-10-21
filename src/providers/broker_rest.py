@@ -1,12 +1,18 @@
 import logging
+import time
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import asyncio
 import math
 import pandas as pd
+from pytz import timezone
+from sklearn.feature_selection import SelectFdr
 import upstox_client
 from upstox_client import ApiClient, MarketDataStreamerV3
 from src.utils.instruments import get_symbol_to_key_mapping
+from src.utils.orders_enum import Product, Validity
+from src.utils.time_utils import IST
+from dateutil import parser
 
 logger = logging.getLogger("broker_rest")
 
@@ -148,8 +154,8 @@ class BrokerRest:
             # Convert order data to Upstox format
             body = upstox_client.PlaceOrderRequest(
                 quantity=payload.get("quantity", 1),
-                product=upstox_client.Product.I,  # Intraday
-                validity=upstox_client.Validity.DAY,
+                product=Product.I,  # Intraday
+                validity=Validity.DAY,
                 price=payload.get("price", 0.0),
                 tag="mental-trader",
                 instrument_token=self._get_instrument_token(payload.get("symbol")),
@@ -199,35 +205,172 @@ class BrokerRest:
             return {"last_price": 0.0, "status": "SDK_MISSING"}
         try:
             fut_symbol = self._derive_futures_symbol(underlying_symbol)
-            token = self._get_instrument_token(fut_symbol)
-            loop = asyncio.get_event_loop()
-            data = loop.run_until_complete(loop.run_in_executor(
-                None,
-                lambda: self.historical_api.get_intra_day_candle_data(token, "minutes", 1)
-            ))
+            #token = self._get_instrument_token(fut_symbol)
+            # If called from within an async loop, running run_until_complete would raise
+            # "This event loop is already running". Instead, perform a synchronous fallback:
+            # 1. If loop is running, schedule a blocking call via run_in_executor and wait using asyncio.run if outside.
+            # Since this method is synchronous, we use a temporary event loop only if no loop is running.
+            try:
+                loop = asyncio.get_running_loop()
+                # We are already inside an event loop: perform a blocking call via future and wait with 'asyncio.run' not allowed.
+                # Simplest approach: use asyncio.run_coroutine_threadsafe with a helper coroutine executed on this loop.
+                # But because we only need a single blocking REST SDK call, call it directly (SDK is already synchronous).
+                data = self.historical_api.get_intra_day_candle_data(fut_symbol, "minutes", 1)
+            except RuntimeError as e:
+                # No running loop: safe to create one and execute asynchronously
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    data = loop.run_until_complete(loop.run_in_executor(
+                        None,
+                        lambda: self.historical_api.get_intra_day_candle_data(fut_symbol, "minutes", 1)
+                    ))
+                finally:
+                    loop.close()
+            source = "intraday"
+            # Fallback to historical single candle if intraday empty
+            if (not data) or (not getattr(data, 'data', None)) or (not data.data.candles):
+                from_date = to_date = datetime.now() - timedelta(days=1)
+
+                to_date_str = to_date.strftime("%Y-%m-%d")
+                from_date_str = from_date.strftime("%Y-%m-%d")
+
+                try:
+                    data = self.historical_api.get_historical_candle_data1(
+                        fut_symbol,
+                        "minutes",
+                        1,
+                        to_date=to_date_str,
+                        from_date=from_date_str
+                    )
+                    source = "historical_fallback"
+                except Exception as fallback_err:
+                    logger.warning("Historical fallback failed for %s: %s", fut_symbol, fallback_err)
+                    return {"last_price": 0.0, "instrument": fut_symbol, "source": "error"}
+
             last_price = 0.0
             if data and getattr(data, 'data', None) and data.data.candles:
                 last_candle = data.data.candles[-1]
                 last_price = float(last_candle[4])
-            return {"last_price": last_price, "instrument": token}
+            return {"last_price": last_price, "instrument": fut_symbol, "source": source}
         except Exception as e:
             logger.warning("get_futures_quote failed: %s", e)
             return {"last_price": 0.0, "status": "ERROR"}
 
-    def get_option_chain(self, underlying_symbol: str) -> List[Dict[str, Any]]:
-        """Fetch option chain for underlying.
+    def find_nearest_expiry(self, instrument_key: str) -> str:
+        """
+        Find the nearest expiry date for options contracts of a given underlying.
+
+        Args:
+            instrument_key (str): Instrument key of the underlying (e.g., 'NSE_INDEX|Nifty 50').
+            access_token (str): Upstox API access token.
+
+        Returns:
+            str: Nearest expiry date in 'YYYY-MM-DD' format, or None if no valid expiries found.
+        """
+
+        try:
+            # Fetch option contracts
+            response = self.options_api.get_option_contracts(instrument_key)
+            contracts = response.data
+
+            if not contracts:
+                logger.warning("No option contracts found for %s", instrument_key)
+                return None
+
+            # Extract unique expiry dates
+            expiry_dates = set()
+            for contract in contracts:
+                if hasattr(contract, 'expiry') and contract.expiry:
+                    expiry_dates.add(contract.expiry)
+
+            if not expiry_dates:
+                logger.warning("No expiry dates found in contracts for %s", instrument_key)
+                return None
+
+            # Parse current date and expiry dates
+            current_date = datetime.now().date()
+            parsed_expiries = []
+            for expiry in expiry_dates:
+                if isinstance(expiry, str):
+                    parsed_expiries.append(parser.parse(expiry).date())
+                elif isinstance(expiry, (datetime, date)):
+                    parsed_expiries.append(expiry.date() if isinstance(expiry, datetime) else expiry)
+                else:
+                    logger.warning("Invalid expiry format: %s", expiry)
+                    continue
+
+            # Filter future expiries and find the nearest
+            future_expiries = [exp for exp in parsed_expiries if exp >= current_date]
+            if not future_expiries:
+                logger.warning("No future expiry dates found for %s", instrument_key)
+                return None
+
+            # Find the nearest expiry
+            nearest_expiry = min(future_expiries, key=lambda x: (x - current_date).days)
+            return nearest_expiry.strftime('%Y-%m-%d')
+        except Exception as e:
+            logger.error("Unexpected error: %s", e)
+            return None
+
+    def get_option_chain(self, instrument_key: str) -> List[Dict[str, Any]]:
+        """Fetch option chain for underlying using Upstox OptionsApi.
 
         Returns list of dicts: symbol, strike, type, expiry, oi, iv, ltp, bid, ask
-        Upstox REST does not always provide full chain in one call; typical approach is:
-          1. Resolve instrument tokens for strikes (pre-generated list or search endpoint).
-          2. Query market data for each token.
-        Here we provide a scaffold with graceful fallback until full integration.
         """
         if upstox_client is None:
             return []
         try:
-            # Placeholder: derive a small synthetic chain around ATM for demo until full mapping is available.
-            spot_info = self.get_futures_quote(underlying_symbol)
+            # Find nearest expiry
+            expiry_date = self.find_nearest_expiry(instrument_key)
+            if not expiry_date:
+                logger.warning("No expiry found for %s", instrument_key)
+                return []
+            
+            # Fetch option chain for nearest expiry
+            response = self.options_api.get_put_call_option_chain(instrument_key, expiry_date)
+            
+            chain = []
+            if response.data:
+                for item in response.data:
+                    # Extract call option
+                    if item.call_options and item.call_options.market_data:
+                        call_md = item.call_options.market_data
+                        call_greeks = item.call_options.option_greeks
+                        chain.append({
+                            'symbol': item.call_options.instrument_key,
+                            'strike': item.strike_price,
+                            'type': 'CALL',
+                            'expiry': item.expiry.strftime('%Y-%m-%d') if item.expiry else expiry_date,
+                            'oi': call_md.oi or 0,
+                            'iv': call_greeks.iv or 0.0,
+                            'ltp': call_md.ltp or 0.0,
+                            'bid': call_md.bid_price or 0.0,
+                            'ask': call_md.ask_price or 0.0
+                        })
+                    
+                    # Extract put option
+                    if item.put_options and item.put_options.market_data:
+                        put_md = item.put_options.market_data
+                        put_greeks = item.put_options.option_greeks
+                        chain.append({
+                            'symbol': item.put_options.instrument_key,
+                            'strike': item.strike_price,
+                            'type': 'PUT',
+                            'expiry': item.expiry.strftime('%Y-%m-%d') if item.expiry else expiry_date,
+                            'oi': put_md.oi or 0,
+                            'iv': put_greeks.iv or 0.0,
+                            'ltp': put_md.ltp or 0.0,
+                            'bid': put_md.bid_price or 0.0,
+                            'ask': put_md.ask_price or 0.0
+                        })
+            
+            logger.info(f"Fetched {len(chain)} options from Upstox API for {instrument_key}")
+            return chain
+        except Exception as e:
+            logger.warning("Upstox option chain API failed: %s, falling back to synthetic", e)
+            # Fallback to synthetic chain if API fails
+            spot_info = self.get_futures_quote(instrument_key)
             spot = spot_info.get('last_price', 0.0)
             if spot <= 0:
                 spot = 0.0
@@ -239,7 +382,7 @@ class BrokerRest:
                 for opt_type in ("CALL", "PUT"):
                     # Synthetic symbol pattern (needs real mapping): e.g. NIFTY24OCT{strike}{CE/PE}
                     suffix = "CE" if opt_type == "CALL" else "PE"
-                    symbol = f"{underlying_symbol.upper()}_OPT_{strike}{suffix}"
+                    symbol = f"{instrument_key.upper()}_OPT_{strike}{suffix}"
                     # Placeholder values (would come from market data api)
                     ltp = max(1.0, abs(atm - strike) * 0.4 + (10 if opt_type == 'CALL' else 9))
                     bid = ltp - 0.5
@@ -250,7 +393,7 @@ class BrokerRest:
                         'symbol': symbol,
                         'strike': strike,
                         'type': opt_type,
-                        'expiry': pd.datetime.now().strftime('%Y-%m-%d'),
+                        'expiry': datetime.now().strftime('%Y-%m-%d'),
                         'oi': max(int(oi), 1000),
                         'iv': max(iv, 5.0),
                         'ltp': ltp,
@@ -258,9 +401,6 @@ class BrokerRest:
                         'ask': ask
                     })
             return chain
-        except Exception as e:
-            logger.warning("get_option_chain failed: %s", e)
-            return []
 
     def _derive_futures_symbol(self, underlying_symbol: str) -> str:
         """Derive a futures symbol token placeholder from an underlying equity/index symbol.

@@ -17,3 +17,4 @@ apscheduler
 protobuf
 pandas
 requests
+matplotlib

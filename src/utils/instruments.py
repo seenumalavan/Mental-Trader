@@ -19,7 +19,7 @@ def load_instruments():
 def get_instruments(category: str):
     """Get instruments for a specific category."""
     instruments = load_instruments()
-    return instruments.get(category.lower(), [])
+    return instruments.get(category.lower(), {})
 
 def resolve_instruments(input_data):
     """
@@ -66,15 +66,13 @@ def _resolve_single_item(item: str, instruments_config: dict):
         category_instruments = instruments_config[item_lower]
         result = []
         
-        for instrument_data in category_instruments:
-            if isinstance(instrument_data, dict):
-                # Handle format: {"ADANIENT(Adani Enterpris)": "NSE_EQ|INE423A01024"}
-                # Keep the full symbol with description, don't extract
-                for symbol_desc, instrument_key in instrument_data.items():
-                    result.append({'symbol': symbol_desc, 'instrument_key': instrument_key})
-            else:
-                # Handle direct string format (if any)
-                result.append({'symbol': str(instrument_data), 'instrument_key': str(instrument_data)})
+        # All categories are now objects with key-value pairs
+        if isinstance(category_instruments, dict):
+            for symbol_desc, instrument_key in category_instruments.items():
+                result.append({'symbol': symbol_desc, 'instrument_key': instrument_key})
+        else:
+            # Handle unexpected format (e.g., for robustness)
+            logger.warning(f"Unexpected format for category {item_lower}: {type(category_instruments)}")
         
         return result
     else:
@@ -98,30 +96,10 @@ def get_symbol_to_key_mapping():
     instruments = load_instruments()
     symbol_map = {}
     
-    # Process nifty stocks - keep full symbol with description
-    for item in instruments.get('nifty', []):
-        if isinstance(item, dict):
-            for symbol_desc, key in item.items():
-                symbol_map[symbol_desc] = key  # Keep full "ADANIENT(Adani Enterpris)" format
-    
-    # Process banknifty stocks - keep full symbol with description  
-    for item in instruments.get('banknifty', []):
-        if isinstance(item, dict):
-            for symbol_desc, key in item.items():
-                symbol_map[symbol_desc] = key  # Keep full format
-    
-    # Process indices - keep full symbol with description
-    for item in instruments.get('indices', []):
-        if isinstance(item, dict):
-            for symbol_desc, key in item.items():
-                symbol_map[symbol_desc] = key  # Keep full format
-    
-    # Process futures (direct mapping)
-    for symbol, key in instruments.get('futures', {}).items():
-        symbol_map[symbol] = key
-    
-    # Process options (direct mapping)
-    for symbol, key in instruments.get('options', {}).items():
-        symbol_map[symbol] = key
+    # Process all categories (nifty, banknifty, indices, futures, options, etc.)
+    for category, category_instruments in instruments.items():
+        if isinstance(category_instruments, dict):
+            for symbol_desc, key in category_instruments.items():
+                symbol_map[symbol_desc] = key
     
     return symbol_map
