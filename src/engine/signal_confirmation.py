@@ -1,10 +1,12 @@
 """Signal confirmation pipeline using RSI, CPR and price action."""
-from typing import List, Dict, Optional
 import logging
-from src.engine.rsi import compute_rsi
+from typing import Dict, List
+
 from src.engine.cpr import compute_cpr
-from src.engine.price_action import analyze_candle, is_bullish_engulf, is_bearish_engulf
 from src.engine.ema import EMAState
+from src.engine.price_action import (analyze_candle, is_bearish_engulf,
+                                     is_bullish_engulf)
+from src.engine.rsi import compute_rsi
 
 logger = logging.getLogger("signal_confirm")
 

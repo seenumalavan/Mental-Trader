@@ -1,15 +1,16 @@
-from fastapi import FastAPI, HTTPException
-from contextlib import asynccontextmanager
-from typing import Union, List, Optional
-from pydantic import BaseModel
-import auth
-from auth import upstox_auth
-from src.services.scalping_service import ScalperService
-from src.utils.logging_config import configure_logging
-from src.utils.instruments import resolve_instruments
-from src.persistence.db import Database
-from src.config import settings
 import logging
+from contextlib import asynccontextmanager
+from typing import List, Optional, Union
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from auth import upstox_auth
+from src.config import settings
+from src.persistence.db import Database
+from src.services.scalping_service import ScalperService
+from src.utils.instruments import resolve_instruments
+from src.utils.logging_config import configure_logging
 
 logger = logging.getLogger("app")
 

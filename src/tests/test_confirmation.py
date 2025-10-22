@@ -1,6 +1,7 @@
-import pytest
-from src.engine.signal_confirmation import confirm_signal, SignalType
+
 from src.engine.ema import EMAState
+from src.engine.signal_confirmation import SignalType, confirm_signal
+
 
 def test_confirm_long_basic():
     ema = EMAState("TEST", "1m", 9, 21, short_ema=105, long_ema=100)

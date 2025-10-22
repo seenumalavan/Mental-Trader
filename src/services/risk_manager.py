@@ -1,5 +1,6 @@
 import math
 
+
 class RiskManager:
     def __init__(self, account_balance: float = 100000.0, risk_per_trade: float = 0.005, max_daily_loss: float = 0.02):
         self.account_balance = account_balance

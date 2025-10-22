@@ -1,18 +1,16 @@
-import logging
-import time
-from typing import List, Dict, Any
-from datetime import date, datetime, timedelta
 import asyncio
+import logging
 import math
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List
+
 import pandas as pd
-from pytz import timezone
-from sklearn.feature_selection import SelectFdr
 import upstox_client
-from upstox_client import ApiClient, MarketDataStreamerV3
+from dateutil import parser
+
 from src.utils.instruments import get_symbol_to_key_mapping
 from src.utils.orders_enum import Product, Validity
 from src.utils.time_utils import IST
-from dateutil import parser
 
 logger = logging.getLogger("broker_rest")
 
@@ -192,7 +190,6 @@ class BrokerRest:
 
     async def close(self):
         """Close any resources."""
-        pass
 
     # ---------------- Option / Derivatives Helpers -----------------
     def get_underlying_price(self, underlying_symbol: str) -> Dict[str, Any]:

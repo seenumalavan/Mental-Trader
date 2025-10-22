@@ -1,4 +1,5 @@
 import logging
+
 from src.config import settings
 from src.engine.scalping_strategy import ScalpStrategy
 from src.services.base_dual_timeframe_service import DualTimeframeServiceBase
@@ -34,6 +35,7 @@ class ScalperService(DualTimeframeServiceBase):
         """Provide context for signal confirmation: recent bars and previous day reference."""
         try:
             import pandas as pd
+
             # Get recent bars for RSI/price action analysis
             recent_bars = []
             key = self.symbol_to_key.get(symbol, symbol)

@@ -1,10 +1,10 @@
 """
 EMA State persistence utilities.
 """
-from datetime import datetime
-from typing import Optional, Dict, Tuple
-from src.persistence.db import Database
+from typing import Dict, Optional
+
 from src.engine.ema import EMAState
+from src.persistence.db import Database
 
 
 class EMAStatePersistence:

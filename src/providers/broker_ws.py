@@ -1,12 +1,11 @@
 import asyncio
 import logging
-from datetime import datetime
-from typing import Callable, List, Dict
+from typing import Callable, Dict, List
 
 try:
     import upstox_client
-    from upstox_client import ApiClient, MarketDataStreamerV3
     from google.protobuf.json_format import MessageToDict
+    from upstox_client import ApiClient, MarketDataStreamerV3
     print(f"DEBUG: broker_ws successfully imported upstox_client: {upstox_client}")
 except ImportError as e:
     print(f"DEBUG: broker_ws failed to import upstox_client: {e}")
@@ -15,8 +14,8 @@ except ImportError as e:
     MarketDataStreamerV3 = None
     MessageToDict = None
 
+from src.utils.instruments import (get_instruments, get_symbol_to_key_mapping)
 from src.utils.time_utils import parse_timestamp
-from src.utils.instruments import get_symbol_to_key_mapping, get_instruments, resolve_instruments
 
 logger = logging.getLogger("broker_ws")
 

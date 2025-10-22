@@ -7,14 +7,14 @@ Examples (run from project root):
 
 Categories and symbols are resolved via instruments file (see src/utils/instruments.py).
 """
-import asyncio
 import argparse
+import asyncio
 import logging
-from typing import List
+
+from src.auth.token_store import get_token
+from src.config import settings
 from src.persistence.db import Database
 from src.providers.broker_rest import BrokerRest
-from src.config import settings
-from src.auth.token_store import get_token
 from src.utils.instruments import resolve_instruments
 
 logger = logging.getLogger("backfill")

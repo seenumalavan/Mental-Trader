@@ -1,7 +1,8 @@
-from matplotlib.sankey import UP
+from typing import List
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
-from typing import List
+
 
 class Settings(BaseSettings):
     DATABASE_URL: str = Field("sqlite:///mental_trader.db", env="DATABASE_URL")

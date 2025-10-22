@@ -1,6 +1,7 @@
 """Price action pattern helpers for confirmation layer."""
 from typing import Dict
 
+
 def analyze_candle(bar: Dict) -> Dict:
     high = bar["high"]; low = bar["low"]; open_ = bar["open"]; close = bar["close"]
     rng = max(high - low, 1e-9)

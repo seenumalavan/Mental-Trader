@@ -5,6 +5,7 @@ Includes a simple width classification useful for volatility context.
 """
 from typing import Dict
 
+
 def compute_cpr(prev_high: float, prev_low: float, prev_close: float) -> Dict[str, float]:
     p = (prev_high + prev_low + prev_close) / 3.0
     bc = (prev_high + prev_low) / 2.0

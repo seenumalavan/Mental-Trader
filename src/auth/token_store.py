@@ -1,9 +1,9 @@
+import json
 import logging
 import os
-import json
 import threading
 from datetime import datetime, timedelta
-from src.config import settings
+
 
 logger = logging.getLogger(__name__)
 

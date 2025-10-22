@@ -25,20 +25,21 @@ Note:
   It relies on candle closes to generate signals (as in live). Intrabar tick simulation not attempted.
 """
 from __future__ import annotations
+
 import argparse
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
-import json
+from typing import Any, Dict, List
 
 try:
     import upstox_client  # type: ignore
 except ImportError:
     upstox_client = None
 
-from src.config import settings
 from src.auth.token_store import get_token
+from src.config import settings
 from src.services.scalping_service import ScalperService
 from src.utils.instruments import resolve_instruments
 

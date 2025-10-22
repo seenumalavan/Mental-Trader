@@ -1,9 +1,11 @@
-import logging
-import httpx
 import asyncio
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import logging
 import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+import httpx
+
 from src.config import settings
 
 logger = logging.getLogger("notifier")

@@ -12,8 +12,8 @@ Bar format required (dict):
     }
 """
 
-from typing import List, Dict, Tuple, Optional
 from math import exp
+from typing import Dict, List, Optional, Tuple
 
 # -------------------------------
 # Core configuration (tune later)

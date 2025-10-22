@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class Product(Enum):
     I = "I"  # Intraday (MIS - Margin Intraday Square-off)
     D = "D"  # Delivery (CNC - Cash and Carry)

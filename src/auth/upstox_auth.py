@@ -1,11 +1,13 @@
 import logging
-from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse, JSONResponse
-import upstox_client
-from upstox_client.rest import ApiException
 from datetime import datetime, timedelta
-from src.config import settings
+
+import upstox_client
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from upstox_client.rest import ApiException
+
 from src.auth.token_store import save_token
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 

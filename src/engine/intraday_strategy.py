@@ -1,9 +1,10 @@
 import logging
 from typing import Any
-from src.execution.execution import Signal
-from src.engine.trend_filter import higher_timeframe_trend_ok
+
 from src.config import settings
 from src.engine.signal_confirmation import confirm_signal
+from src.engine.trend_filter import higher_timeframe_trend_ok
+from src.execution.execution import Signal
 
 logger = logging.getLogger("intraday_strategy")
 

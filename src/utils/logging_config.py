@@ -1,6 +1,7 @@
 import logging
 import sys
 
+
 def configure_logging():
     """Configure logging for the application."""
     root = logging.getLogger()

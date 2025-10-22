@@ -1,8 +1,7 @@
-from collections import defaultdict
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import List, Tuple
-import math
+
 
 @dataclass
 class Bar:

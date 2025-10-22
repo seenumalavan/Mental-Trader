@@ -1,8 +1,9 @@
 import logging
+
 from src.config import settings
 from src.engine.intraday_strategy import IntradayStrategy
-from src.services.risk_manager import RiskManager
 from src.services.base_dual_timeframe_service import DualTimeframeServiceBase
+from src.services.risk_manager import RiskManager
 
 logger = logging.getLogger("intraday_service")
 
@@ -41,6 +42,7 @@ class IntradayService(DualTimeframeServiceBase):
         """Provide context for signal confirmation: recent bars and previous day reference."""
         try:
             import pandas as pd
+
             # Get recent bars for RSI/price action analysis
             recent_bars = []
             key = self.symbol_to_key.get(symbol, symbol)

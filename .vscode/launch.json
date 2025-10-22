@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Backfill: Nifty + Indices (1m 300)",
+            "name": "Backfill: Historical Data",
             "type": "debugpy",
             "request": "launch",
             "module": "src.scripts.backfill_historical",
@@ -34,7 +34,7 @@
             "jinja": true
         },
         {
-            "name": "Backtest: Intraday Service (Nifty Mar 1-10)",
+            "name": "Backtest: Intraday Service",
             "type": "debugpy",
             "request": "launch",
             "module": "src.scripts.backtest_intraday_service",
@@ -57,7 +57,7 @@
             }
         },
         {
-            "name": "Backtest: Scalper Service (Nifty RELIANCE Mar 1-7)",
+            "name": "Backtest: Scalper Service",
             "type": "debugpy",
             "request": "launch",
             "module": "src.scripts.backtest_scalper_service",

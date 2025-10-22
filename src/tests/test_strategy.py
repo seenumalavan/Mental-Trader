@@ -1,6 +1,8 @@
 import pytest
+
 from src.engine.ema import EMAState
 from src.engine.scalping_strategy import ScalpStrategy
+
 
 @pytest.mark.asyncio
 async def test_crossover_signal():

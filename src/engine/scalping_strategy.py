@@ -1,9 +1,10 @@
-from typing import Any, Callable, List, Dict
 import logging
+from typing import Any
+
 from src.config import settings
-from src.execution.execution import Signal
-from src.engine.signal_confirmation import confirm_signal, SignalType
+from src.engine.signal_confirmation import confirm_signal
 from src.engine.trend_filter import higher_timeframe_trend_ok
+from src.execution.execution import Signal
 
 logger = logging.getLogger("scalping_strategy")
 

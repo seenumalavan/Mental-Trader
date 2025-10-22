@@ -1,5 +1,6 @@
-from typing import List, Dict
 import statistics
+from typing import Dict, List
+
 from src.models.option_models import OptionContract, RankedStrike
 
 

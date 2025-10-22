@@ -1,5 +1,6 @@
 from math import floor
 from typing import Dict
+
 from src.models.option_models import OptionContract
 
 

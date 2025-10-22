@@ -1,6 +1,7 @@
 # Simple router; intentionally small to avoid duplication of orders
 from dataclasses import dataclass
 
+
 @dataclass
 class SignalMessage:
     symbol: str

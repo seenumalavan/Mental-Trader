@@ -4,7 +4,8 @@ from datetime import datetime
 # Simple SQLAlchemy-only approach
 try:
     import sqlalchemy
-    from sqlalchemy import Table, Column, String, Integer, Float, MetaData, DateTime, text, create_engine, UniqueConstraint
+    from sqlalchemy import (Column, DateTime, Float, Integer, MetaData, String,
+                            Table, UniqueConstraint, create_engine, text)
     DATABASE_AVAILABLE = True
 except ImportError:
     sqlalchemy = None

@@ -5,6 +5,7 @@ Avoids external dependencies; uses a simple backward-looking window.
 """
 from typing import List, Optional, Tuple
 
+
 def compute_rsi(closes: List[float], period: int = 14) -> Optional[float]:
     """Compute RSI for a list of closing prices.
 
@@ -47,6 +48,7 @@ def stream_rsi_step(prev_avg_gain: float, prev_avg_loss: float, change: float, p
     return avg_gain, avg_loss, rsi
 # Minimal RSI calculator (Wilder’s smoothing)
 from typing import List, Optional
+
 
 def compute_rsi(closes: List[float], period: int = 14) -> Optional[float]:
     if len(closes) < period + 1:

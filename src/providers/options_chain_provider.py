@@ -1,11 +1,11 @@
+import logging
 import time
-from typing import List, Dict
-from datetime import datetime
+from typing import Dict, List
 
 import pandas as pd
+
 from src.models.option_models import OptionContract
 from src.utils.time_utils import now_ist
-import logging
 
 logger = logging.getLogger("options_provider")
 

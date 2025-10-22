@@ -1,10 +1,10 @@
-import asyncio
+
 import pytest
-from datetime import datetime
+
 from src.options.options_manager import OptionsManager
 from src.providers.options_chain_provider import OptionsChainProvider
-from src.models.option_models import OptionContract
 from src.utils.time_utils import now_ist
+
 
 class DummyRest:
     def __init__(self):
