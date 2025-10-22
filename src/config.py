@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     UPSTOX_AUTH_URL: str = Field("https://api.upstox.com/index/dialog/authorize", env="UPSTOX_AUTH_URL")
 
     # Trading Configuration
-    WATCHLIST: str = Field("RELIANCE,INFY,ICICIBANK", env="WATCHLIST")
     WARMUP_BARS: int = Field(2400, env="WARMUP_BARS")
     EMA_SHORT: int = Field(8, env="EMA_SHORT")
     EMA_LONG: int = Field(21, env="EMA_LONG")
@@ -65,6 +64,3 @@ class Settings(BaseSettings):
     }
 
 settings = Settings()
-
-def watchlist_symbols() -> List[str]:
-    return [s.strip() for s in settings.WATCHLIST.split(",") if s.strip()]

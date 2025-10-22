@@ -207,9 +207,7 @@ async def stop_trading():
 @app.get("/config")
 async def get_config():
     """Get current configuration (safe values only)."""
-    from src.config import watchlist_symbols
     return {
-        "watchlist": watchlist_symbols(),
         "ema_short": settings.EMA_SHORT,
         "ema_long": settings.EMA_LONG,
         "warmup_bars": settings.WARMUP_BARS,
