@@ -9,7 +9,7 @@ from src.config import settings
 logger = logging.getLogger("notifier")
 
 class Notifier:
-    def __init__(self, webhook_url: str = ""):
+    def __init__(self, webhook_url: str = "", smtp_server: str = "smtp.gmail.com", smtp_port: int = 587):
         """Initialize Notifier with webhook URL and async HTTP client."""
         self.webhook = webhook_url
         self.client = httpx.AsyncClient(timeout=5.0)
@@ -21,6 +21,9 @@ class Notifier:
             and settings.SMTP_TO
             and settings.SMTP_FROM
         )
+
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
 
     async def _send_email(self, subject: str, html_body: str, plain_text: str):
         """Send an email with both HTML and plain text content."""
@@ -43,7 +46,7 @@ class Notifier:
         loop = asyncio.get_running_loop()
         try:
             def _send():
-                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as server:
                     server.starttls()
                     server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
                     server.send_message(msg)

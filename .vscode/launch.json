@@ -5,27 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Backfill Historical",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "src.scripts.backfill_historical",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
             "name": "Backfill: Nifty + Indices (1m 300)",
             "type": "debugpy",
             "request": "launch",
             "module": "src.scripts.backfill_historical",
             "args": [
                 "--inputs",
-                "nifty,indices",
+                "TCS(TCS)",
                 "--timeframe",
-                "1m",
+                "5m",
                 "--limit",
-                "10000"
+                "1500"
             ],
             "cwd": "${workspaceFolder}",
             "env": {
@@ -44,24 +34,22 @@
             "jinja": true
         },
         {
-            "name": "Backtest: Nifty 5m (Mar 1-10)",
+            "name": "Backtest: Intraday Service (Nifty Mar 1-10)",
             "type": "debugpy",
             "request": "launch",
-            "module": "src.scripts.backtest_strategy",
+            "module": "src.scripts.backtest_intraday_service",
             "justMyCode": true,
             "args": [
                 "--symbols",
-                "nifty",
+                "TCS(TCS)",
                 "--start",
                 "2025-03-01",
                 "--end",
                 "2025-03-10",
-                "--timeframe",
-                "5m",
-                "--csv",
-                "summary.csv",
-                "--equity",
-                "equity.csv"
+                "--limit",
+                "5000",
+                "--report",
+                "intraday_report.json"
             ],
             "cwd": "${workspaceFolder}",
             "env": {

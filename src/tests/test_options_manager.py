@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 from datetime import datetime
 from src.options.options_manager import OptionsManager
 from src.providers.options_chain_provider import OptionsChainProvider
@@ -21,12 +22,16 @@ class DummyRest:
 async def _collector(signal_list, sig):
     signal_list.append(sig)
 
+@pytest.mark.asyncio
 async def test_manager_basic():
     rest = DummyRest()
     provider = OptionsChainProvider(rest)
+    provider.set_instrument("NIFTY")  # Set the instrument symbol
     collected = []
     cfg = {"OPTION_ENABLE": True, "OPTION_RISK_CAP_PER_TRADE": 10000}
-    mgr = OptionsManager(provider, cfg, lambda s: _collector(collected, s))
+    async def callback(sig):
+        await _collector(collected, sig)
+    mgr = OptionsManager(provider, cfg, callback)
     await mgr.publish_underlying_signal(symbol="Nifty 50", side="BUY", price=24005, timeframe="1m", origin="scalper")
     assert collected, "No option signal emitted"
     assert collected[0].contract_symbol.startswith("NIFTY_C_"), "Expected call option for BUY side"

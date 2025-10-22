@@ -1,194 +1,70 @@
 {
-    "nifty": [
-        {
-            "ADANIENT(Adani Enterpris)": "NSE_EQ|INE423A01024"
-        },
-        {
-            "ADANIPORTS(Adani Ports)": "NSE_EQ|INE742F01042"
-        },
-        {
-            "APOLLOHOSP(Apollo Hospital)": "NSE_EQ|INE437A01024"
-        },
-        {
-            "ASIANPAINT(Asian Paints)": "NSE_EQ|INE021A01026"
-        },
-        {
-            "AXISBANK(Axis Bank)": "NSE_EQ|INE238A01034"
-        },
-        {
-            "BAJAJ-AUTO(Bajaj Auto)": "NSE_EQ|INE917I01010"
-        },
-        {
-            "BAJAJFINSV(Bajaj Finserv)": "NSE_EQ|INE918I01026"
-        },
-        {
-            "BAJFINANCE(Bajaj Finance)": "NSE_EQ|INE296A01032"
-        },
-        {
-            "BEL(Bharat Elec)": "NSE_EQ|INE263A01024"
-        },
-        {
-            "BHARTIARTL(Bharti Airtel)": "NSE_EQ|INE397D01024"
-        },
-        {
-            "BPCL(BPCL)": "NSE_EQ|INE029A01011"
-        },
-        {
-            "BRITANNIA(Britannia)": "NSE_EQ|INE216A01030"
-        },
-        {
-            "CIPLA(Cipla)": "NSE_EQ|INE059A01026"
-        },
-        {
-            "COALINDIA(Coal India)": "NSE_EQ|INE522F01014"
-        },
-        {
-            "DRREDDY(Dr Reddys Labs)": "NSE_EQ|INE089A01031"
-        },
-        {
-            "EICHERMOT(Eicher Motors)": "NSE_EQ|INE066A01021"
-        },
-        {
-            "GRASIM(Grasim)": "NSE_EQ|INE047A01021"
-        },
-        {
-            "HCLTECH(HCL Tech)": "NSE_EQ|INE860A01027"
-        },
-        {
-            "HDFCBANK(HDFC Bank)": "NSE_EQ|INE040A01034"
-        },
-        {
-            "HDFCLIFE(HDFC Life)": "NSE_EQ|INE795G01014"
-        },
-        {
-            "HEROMOTOCO(Hero Motocorp)": "NSE_EQ|INE158A01026"
-        },
-        {
-            "HINDALCO(Hindalco)": "NSE_EQ|INE038A01020"
-        },
-        {
-            "HINDUNILVR(HUL)": "NSE_EQ|INE030A01027"
-        },
-        {
-            "ICICIBANK(ICICI Bank)": "NSE_EQ|INE090A01021"
-        },
-        {
-            "INDUSINDBK(IndusInd Bank)": "NSE_EQ|INE095A01012"
-        },
-        {
-            "INFY(Infosys)": "NSE_EQ|INE009A01021"
-        },
-        {
-            "ITC(ITC)": "NSE_EQ|INE154A01025"
-        },
-        {
-            "JSWSTEEL(JSW Steel)": "NSE_EQ|INE019A01038"
-        },
-        {
-            "KOTAKBANK(Kotak Mahindra)": "NSE_EQ|INE237A01028"
-        },
-        {
-            "LT(Larsen)": "NSE_EQ|INE018A01030"
-        },
-        {
-            "M&M(M&M)": "NSE_EQ|INE101A01026"
-        },
-        {
-            "MARUTI(Maruti Suzuki)": "NSE_EQ|INE585B01010"
-        },
-        {
-            "NESTLEIND(Nestle)": "NSE_EQ|INE239A01024"
-        },
-        {
-            "NTPC(NTPC)": "NSE_EQ|INE733E01010"
-        },
-        {
-            "ONGC(ONGC)": "NSE_EQ|INE213A01029"
-        },
-        {
-            "POWERGRID(Power Grid Corp)": "NSE_EQ|INE752E01010"
-        },
-        {
-            "RELIANCE(Reliance)": "NSE_EQ|INE002A01018"
-        },
-        {
-            "SBILIFE(SBI Life Insura)": "NSE_EQ|INE123W01016"
-        },
-        {
-            "SBIN(SBI)": "NSE_EQ|INE062A01020"
-        },
-        {
-            "SHRIRAMFIN(Shriram Finance)": "NSE_EQ|INE721A01047"
-        },
-        {
-            "SUNPHARMA(Sun Pharma)": "NSE_EQ|INE044A01036"
-        },
-        {
-            "TATACONSUM(TATA Cons. Prod)": "NSE_EQ|INE192A01025"
-        },
-        {
-            "TATAMOTORS(Tata Motors)": "NSE_EQ|INE155A01022"
-        },
-        {
-            "TATASTEEL(Tata Steel)": "NSE_EQ|INE081A01020"
-        },
-        {
-            "TCS(TCS)": "NSE_EQ|INE467B01029"
-        },
-        {
-            "TECHM(Tech Mahindra)": "NSE_EQ|INE669C01036"
-        },
-        {
-            "TITAN(Titan Company)": "NSE_EQ|INE280A01028"
-        },
-        {
-            "TRENT(Trent)": "NSE_EQ|INE849A01020"
-        },
-        {
-            "ULTRACEMCO(UltraTechCement)": "NSE_EQ|INE481G01011"
-        },
-        {
-            "WIPRO(Wipro)": "NSE_EQ|INE075A01022"
-        }
-    ],
-    "banknifty": [
-        {
-            "AUBANK(AU Small Finance Bank)": "NSE_EQ|INE949L01017"
-        },
-        {
-            "AXISBANK(Axis Bank)": "NSE_EQ|INE238A01034"
-        },
-        {
-            "BANKBARODA(Bank of Baroda)": "NSE_EQ|INE028A01039"
-        },
-        {
-            "CANBK(Canara Bank)": "NSE_EQ|INE476A01022"
-        },
-        {
-            "FEDERALBNK(Federal Bank)": "NSE_EQ|INE171A01029"
-        },
-        {
-            "HDFCBANK(HDFC Bank)": "NSE_EQ|INE040A01034"
-        },
-        {
-            "ICICIBANK(ICICI Bank)": "NSE_EQ|INE090A01021"
-        },
-        {
-            "IDFCFIRSTB(IDFC First Bank)": "NSE_EQ|INE092T01019"
-        },
-        {
-            "INDUSINDBK(IndusInd Bank)": "NSE_EQ|INE095A01012"
-        },
-        {
-            "KOTAKBANK(Kotak Mahindra)": "NSE_EQ|INE237A01028"
-        },
-        {
-            "PNB(Punjab National Bank)": "NSE_EQ|INE160A01022"
-        },
-        {
-            "SBIN(SBI)": "NSE_EQ|INE062A01020"
-        }
-    ],
+    "nifty": {
+        "ADANIENT(Adani Enterpris)": "NSE_EQ|INE423A01024",
+        "ADANIPORTS(Adani Ports)": "NSE_EQ|INE742F01042",
+        "APOLLOHOSP(Apollo Hospital)": "NSE_EQ|INE437A01024",
+        "ASIANPAINT(Asian Paints)": "NSE_EQ|INE021A01026",
+        "AXISBANK(Axis Bank)": "NSE_EQ|INE238A01034",
+        "BAJAJ-AUTO(Bajaj Auto)": "NSE_EQ|INE917I01010",
+        "BAJAJFINSV(Bajaj Finserv)": "NSE_EQ|INE918I01026",
+        "BAJFINANCE(Bajaj Finance)": "NSE_EQ|INE296A01032",
+        "BEL(Bharat Elec)": "NSE_EQ|INE263A01024",
+        "BHARTIARTL(Bharti Airtel)": "NSE_EQ|INE397D01024",
+        "BPCL(BPCL)": "NSE_EQ|INE029A01011",
+        "BRITANNIA(Britannia)": "NSE_EQ|INE216A01030",
+        "CIPLA(Cipla)": "NSE_EQ|INE059A01026",
+        "COALINDIA(Coal India)": "NSE_EQ|INE522F01014",
+        "DRREDDY(Dr Reddys Labs)": "NSE_EQ|INE089A01031",
+        "EICHERMOT(Eicher Motors)": "NSE_EQ|INE066A01021",
+        "GRASIM(Grasim)": "NSE_EQ|INE047A01021",
+        "HCLTECH(HCL Tech)": "NSE_EQ|INE860A01027",
+        "HDFCBANK(HDFC Bank)": "NSE_EQ|INE040A01034",
+        "HDFCLIFE(HDFC Life)": "NSE_EQ|INE795G01014",
+        "HEROMOTOCO(Hero Motocorp)": "NSE_EQ|INE158A01026",
+        "HINDALCO(Hindalco)": "NSE_EQ|INE038A01020",
+        "HINDUNILVR(HUL)": "NSE_EQ|INE030A01027",
+        "ICICIBANK(ICICI Bank)": "NSE_EQ|INE090A01021",
+        "INDUSINDBK(IndusInd Bank)": "NSE_EQ|INE095A01012",
+        "INFY(Infosys)": "NSE_EQ|INE009A01021",
+        "ITC(ITC)": "NSE_EQ|INE154A01025",
+        "JSWSTEEL(JSW Steel)": "NSE_EQ|INE019A01038",
+        "KOTAKBANK(Kotak Mahindra)": "NSE_EQ|INE237A01028",
+        "LT(Larsen)": "NSE_EQ|INE018A01030",
+        "M&M(M&M)": "NSE_EQ|INE101A01026",
+        "MARUTI(Maruti Suzuki)": "NSE_EQ|INE585B01010",
+        "NESTLEIND(Nestle)": "NSE_EQ|INE239A01024",
+        "NTPC(NTPC)": "NSE_EQ|INE733E01010",
+        "ONGC(ONGC)": "NSE_EQ|INE213A01029",
+        "POWERGRID(Power Grid Corp)": "NSE_EQ|INE752E01010",
+        "RELIANCE(Reliance)": "NSE_EQ|INE002A01018",
+        "SBILIFE(SBI Life Insura)": "NSE_EQ|INE123W01016",
+        "SBIN(SBI)": "NSE_EQ|INE062A01020",
+        "SHRIRAMFIN(Shriram Finance)": "NSE_EQ|INE721A01047",
+        "SUNPHARMA(Sun Pharma)": "NSE_EQ|INE044A01036",
+        "TATACONSUM(TATA Cons. Prod)": "NSE_EQ|INE192A01025",
+        "TATAMOTORS(Tata Motors)": "NSE_EQ|INE155A01022",
+        "TATASTEEL(Tata Steel)": "NSE_EQ|INE081A01020",
+        "TCS(TCS)": "NSE_EQ|INE467B01029",
+        "TECHM(Tech Mahindra)": "NSE_EQ|INE669C01036",
+        "TITAN(Titan Company)": "NSE_EQ|INE280A01028",
+        "TRENT(Trent)": "NSE_EQ|INE849A01020",
+        "ULTRACEMCO(UltraTechCement)": "NSE_EQ|INE481G01011",
+        "WIPRO(Wipro)": "NSE_EQ|INE075A01022"
+    },
+    "banknifty": {
+        "AUBANK(AU Small Finance Bank)": "NSE_EQ|INE949L01017",
+        "AXISBANK(Axis Bank)": "NSE_EQ|INE238A01034",
+        "BANKBARODA(Bank of Baroda)": "NSE_EQ|INE028A01039",
+        "CANBK(Canara Bank)": "NSE_EQ|INE476A01022",
+        "FEDERALBNK(Federal Bank)": "NSE_EQ|INE171A01029",
+        "HDFCBANK(HDFC Bank)": "NSE_EQ|INE040A01034",
+        "ICICIBANK(ICICI Bank)": "NSE_EQ|INE090A01021",
+        "IDFCFIRSTB(IDFC First Bank)": "NSE_EQ|INE092T01019",
+        "INDUSINDBK(IndusInd Bank)": "NSE_EQ|INE095A01012",
+        "KOTAKBANK(Kotak Mahindra)": "NSE_EQ|INE237A01028",
+        "PNB(Punjab National Bank)": "NSE_EQ|INE160A01022",
+        "SBIN(SBI)": "NSE_EQ|INE062A01020"
+    },
     "futures": {
         "BANKNIFTY FUT 28 OCT 25": "NSE_FO|52145",
         "FINNIFTY FUT 28 OCT 25": "NSE_FO|52146",
@@ -203,39 +79,20 @@
         "NIFTY 27000 PE 30 DEC 25": "NSE_FO|50972",
         "NIFTY 27000 CE 30 JUN 26": "NSE_FO|50973"
     },
-    "indices": [
-        {
-            "NIFTY(Nifty 50)": "NSE_IDX|NIFTY 50"
-        },
-        {
-            "BANKNIFTY(Nifty Bank)": "NSE_IDX|NIFTY BANK"
-        },
-        {
-            "NIFTYIT(Nifty IT)": "NSE_IDX|NIFTY IT"
-        },
-        {
-            "NIFTYAUTO(Nifty Auto)": "NSE_IDX|NIFTY AUTO"
-        },
-        {
-            "NIFTYFMCG(Nifty FMCG)": "NSE_IDX|NIFTY FMCG"
-        },
-        {
-            "NIFTYPHARMA(Nifty Pharma)": "NSE_IDX|NIFTY PHARMA"
-        },
-        {
-            "NIFTYREALTY(Nifty Realty)": "NSE_IDX|NIFTY REALTY"
-        },
-        {
-            "NIFTYPSUBANK(Nifty PSU Bank)": "NSE_IDX|NIFTY PSU BANK"
-        },
-        {
-            "NIFTYPRIVATBANK(Nifty Private Bank)": "NSE_IDX|NIFTY PRIVATE BANK"
-        },
-        {
-            "NIFTYMIDCAP100(Nifty Midcap 100)": "NSE_IDX|NIFTY MIDCAP 100"
-        },
-        {
-            "NIFTY500(Nifty 500)": "NSE_IDX|NIFTY 500"
-        }
-    ]
+    "indices": {
+        "NIFTY(Nifty 50)": "NSE_INDEX|Nifty 50"
+    },
+    "indices_backup": {
+        "NIFTY(Nifty 50)": "NSE_INDEX|Nifty 50",
+        "BANKNIFTY(Nifty Bank)": "NSE_INDEX|Nifty Bank",
+        "NIFTYIT(Nifty IT)": "NSE_INDEX|Nifty IT",
+        "NIFTYAUTO(Nifty Auto)": "NSE_INDEX|Nifty Auto",
+        "NIFTYFMCG(Nifty FMCG)": "NSE_INDEX|Nifty FMCG",
+        "NIFTYPHARMA(Nifty Pharma)": "NSE_INDEX|Nifty Pharma",
+        "NIFTYREALTY(Nifty Realty)": "NSE_INDEX|Nifty Realty",
+        "NIFTYPSUBANK(Nifty PSU Bank)": "NSE_INDEX|Nifty PSU Bank",
+        "NIFTYPRIVATBANK(Nifty Private Bank)": "NSE_INDEX|Nifty Private Bank",
+        "NIFTYMIDCAP100(Nifty Midcap 100)": "NSE_INDEX|Nifty Midcap 100",
+        "NIFTY500(Nifty 500)": "NSE_INDEX|Nifty 500"
+    }
 }

@@ -5,6 +5,8 @@ from src.execution.execution import Signal
 from src.engine.signal_confirmation import confirm_signal, SignalType
 from src.engine.trend_filter import higher_timeframe_trend_ok
 
+logger = logging.getLogger("scalping_strategy")
+
 class ScalpStrategy:
     """
     Minimal EMA crossover scalping strategy:
@@ -43,6 +45,15 @@ class ScalpStrategy:
             tgt = bar.close + (0.003 * bar.close)
             size = 1
             if trend_ok("BUY"):
+                # Signal confirmation with RSI, CPR, price action
+                if settings.SCALP_ENABLE_SIGNAL_CONFIRMATION:
+                    recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
+                    if recent_bars:
+                        result = confirm_signal("BUY", ema_state, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
+                        if not result["confirmed"]:
+                            logger.info(f"BUY signal rejected for {symbol}: {result['reasons']}")
+                            return
+                
                 if trade_underlying:
                     signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
                     await self.service.executor.handle_signal(signal)
@@ -56,6 +67,15 @@ class ScalpStrategy:
             tgt = bar.close - (0.003 * bar.close)
             size = 1
             if trend_ok("SELL"):
+                # Signal confirmation with RSI, CPR, price action
+                if settings.SCALP_ENABLE_SIGNAL_CONFIRMATION:
+                    recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
+                    if recent_bars:
+                        result = confirm_signal("SELL", ema_state, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
+                        if not result["confirmed"]:
+                            logger.info(f"SELL signal rejected for {symbol}: {result['reasons']}")
+                            return
+                
                 #if trade_underlying:
                     #signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
                     #await self.service.executor.handle_signal(signal)

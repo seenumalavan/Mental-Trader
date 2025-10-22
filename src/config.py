@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     DATABASE_URL: str = Field("sqlite:///mental_trader.db", env="DATABASE_URL")
     
     # Upstox API Configuration
-    UPSTOX_ACCESS_TOKEN: str = Field("", env="UPSTOX_ACCESS_TOKEN")
     UPSTOX_API_KEY: str = Field("", env="UPSTOX_API_KEY") 
     UPSTOX_API_SECRET: str = Field("", env="UPSTOX_API_SECRET")
     UPSTOX_REDIRECT_URI: str = Field("", env="UPSTOX_REDIRECT_URI")
@@ -21,23 +20,29 @@ class Settings(BaseSettings):
     
     # Notifications
     NOTIFIER_WEBHOOK: str = Field("", env="NOTIFIER_WEBHOOK")
+    
     # Email / SMTP (Gmail)
-    SMTP_HOST: str = Field("smtp.gmail.com", env="SMTP_HOST")
-    SMTP_PORT: int = Field(587, env="SMTP_PORT")
+    SMTP_ENABLE: bool = Field(False, env="SMTP_ENABLE")
     SMTP_USERNAME: str = Field("", env="SMTP_USERNAME")
     SMTP_PASSWORD: str = Field("", env="SMTP_PASSWORD")
     SMTP_FROM: str = Field("", env="SMTP_FROM")
     SMTP_TO: str = Field("", env="SMTP_TO")
-    SMTP_ENABLE: bool = Field(False, env="SMTP_ENABLE")
 
     # Scalper configuration
     SCALP_PRIMARY_TIMEFRAME: str = Field("1m", env="SCALP_PRIMARY_TIMEFRAME")
     SCALP_CONFIRM_TIMEFRAME: str = Field("5m", env="SCALP_CONFIRM_TIMEFRAME")
     SCALP_ENABLE_CONFIRM_FILTER: bool = Field(True, env="SCALP_ENABLE_CONFIRM_FILTER")
+    SCALP_ENABLE_SIGNAL_CONFIRMATION: bool = Field(True, env="SCALP_ENABLE_SIGNAL_CONFIRMATION")
+    
     # Intraday configuration (configurable primary and confirmation timeframes)
     INTRADAY_PRIMARY_TIMEFRAME: str = Field("5m", env="INTRADAY_PRIMARY_TIMEFRAME")
     INTRADAY_CONFIRM_TIMEFRAME: str = Field("15m", env="INTRADAY_CONFIRM_TIMEFRAME")
     INTRADAY_ENABLE_CONFIRM_FILTER: bool = Field(True, env="INTRADAY_ENABLE_CONFIRM_FILTER")
+    INTRADAY_ENABLE_SIGNAL_CONFIRMATION: bool = Field(True, env="INTRADAY_ENABLE_SIGNAL_CONFIRMATION")
+
+    # Confirmation pipeline configuration
+    CONFIRMATION_RECENT_BARS: int = Field(750, env="CONFIRMATION_RECENT_BARS")
+    CONFIRMATION_REQUIRE_CPR: bool = Field(False, env="CONFIRMATION_REQUIRE_CPR")
 
     # Option Trading (Shared Options Manager)
     OPTION_ENABLE: bool = Field(True, env="OPTION_ENABLE")
