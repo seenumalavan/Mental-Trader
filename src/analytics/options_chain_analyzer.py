@@ -78,11 +78,20 @@ def rank_strikes(chain: List[OptionContract], side: str, spot_price: float, mode
             comp['oi_change'] = max(change_ratio, 0.0)
         else:
             comp['oi_change'] = 0.5
-        score = (comp['oi_rank'] * 0.25 +
-                 comp['distance'] * 0.15 +
-                 comp['iv_quality'] * 0.25 +
+        # Add greeks component: for BUY (calls), prefer higher delta; for SELL (puts), prefer higher abs(delta)
+        delta_score = 0.5
+        if c.delta is not None:
+            if side == 'BUY' and c.kind == 'CALL':
+                delta_score = min(c.delta, 1.0)  # Closer to 1 for ITM calls
+            elif side == 'SELL' and c.kind == 'PUT':
+                delta_score = min(abs(c.delta), 1.0)  # Closer to 1 for ITM puts
+        comp['delta_suitability'] = delta_score
+        score = (comp['oi_rank'] * 0.20 +
+                 comp['distance'] * 0.10 +
+                 comp['iv_quality'] * 0.20 +
                  comp['spread'] * 0.15 +
-                 comp['oi_change'] * 0.20)
+                 comp['oi_change'] * 0.15 +
+                 comp['delta_suitability'] * 0.20)
         ranked.append(RankedStrike(contract=c,
                                    score=score,
                                    components=comp,

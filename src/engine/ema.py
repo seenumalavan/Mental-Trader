@@ -11,12 +11,23 @@ class EMAState:
     long_ema: float = None
     prev_short: float = None
     prev_long: float = None
+    atr: float = None
 
     def initialize_from_candles(self, candles: List[dict]):
         # candles: chronological (old -> new) list of {ts, open, high, low, close, volume}
         closes = [c["close"] for c in candles]
         if not closes:
             return
+        # Calculate ATR
+        if len(candles) > 1:
+            trs = []
+            prev_close = candles[0]["close"]
+            for c in candles[1:]:
+                tr = max(c["high"] - c["low"], abs(c["high"] - prev_close), abs(c["low"] - prev_close))
+                trs.append(tr)
+                prev_close = c["close"]
+            if trs:
+                self.atr = sum(trs) / len(trs)  # Simple average, could use EMA for ATR
         # seed EMA with SMA of first N if possible
         def sma(data, n):
             return sum(data[-n:]) / n if len(data) >= n else sum(data) / len(data)

@@ -15,6 +15,11 @@ class OptionContract:
     bid: float
     ask: float
     timestamp: datetime
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    theta: Optional[float] = None
+    vega: Optional[float] = None
+    rho: Optional[float] = None
 
     @property
     def oi_change(self) -> Optional[int]:

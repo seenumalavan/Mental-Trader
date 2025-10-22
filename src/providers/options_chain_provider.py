@@ -28,7 +28,7 @@ class OptionsChainProvider:
         if not self.instrument_symbol:
             return 0.0
         try:
-            data = self.rest.get_futures_quote(self.instrument_symbol)
+            data = self.rest.get_underlying_price(self.instrument_symbol)
             return float(data.get("last_price", 0.0))
         except Exception as e:
             logger.warning("Futures price fetch failed: %s", e)
@@ -68,7 +68,12 @@ class OptionsChainProvider:
                     ltp=ltp,
                     bid=bid,
                     ask=ask,
-                    timestamp=ts_now
+                    timestamp=ts_now,
+                    delta=item.get('delta'),
+                    gamma=item.get('gamma'),
+                    theta=item.get('theta'),
+                    vega=item.get('vega'),
+                    rho=item.get('rho')
                 )
                 new_contracts.append(oc)
             except Exception as e:

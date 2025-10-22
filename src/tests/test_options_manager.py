@@ -15,7 +15,7 @@ class DummyRest:
             {"symbol":"NIFTY_C_24000","strike":24000,"type":"CALL","expiry":ts.isoformat(),"oi":120000,"iv":12.5,"ltp":120.0,"bid":119.5,"ask":120.5},
             {"symbol":"NIFTY_P_24000","strike":24000,"type":"PUT","expiry":ts.isoformat(),"oi":110000,"iv":13.0,"ltp":130.0,"bid":129.0,"ask":131.0}
         ]
-    def get_futures_quote(self, instrument_symbol):
+    def get_underlying_price(self, instrument_symbol):
         return {"last_price":24005}
 
 async def _collector(signal_list, sig):

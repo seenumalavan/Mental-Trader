@@ -32,27 +32,38 @@ class ScalpStrategy:
                 return True
             return higher_timeframe_trend_ok(side, bar.close, primary_tf, confirm_tf, ema_confirm)
 
+        # Check if symbol is an index (trade only options for indices)
+        is_index = symbol.startswith("NSE_INDEX")
+        # Volatility filter: high vol -> prefer options; low vol -> prefer underlying
+        high_vol = ema_state.atr and ema_state.atr > 0.02 * bar.close  # ATR > 2% of price
+        trade_underlying = not is_index and not high_vol  # Trade underlying only for stocks in low vol
+
         if prev_short <= prev_long and curr_short > curr_long:
             sl = bar.close - (0.002 * bar.close)
             tgt = bar.close + (0.003 * bar.close)
             size = 1
             if trend_ok("BUY"):
-                signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
-                await self.service.executor.handle_signal(signal)
-                await self.service.notifier.notify_signal(signal)
-                # Publish to shared OptionsManager if available
-                if self.service.options_manager:
-                    await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="scalper")
-        elif prev_short >= prev_long and curr_short < curr_long:
-            sl = bar.close + (0.002 * bar.close)
-            tgt = bar.close - (0.003 * bar.close)
-            size = 1
-            if trend_ok("SELL"):
-                signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
-                await self.service.executor.handle_signal(signal)
-                await self.service.notifier.notify_signal(signal)
-                if self.service.options_manager:
-                    await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="scalper")
+                if trade_underlying:
+                    signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
+                    await self.service.executor.handle_signal(signal)
+                    await self.service.notifier.notify_signal(signal)
+                # Trade options in high vol or for indices
+                if high_vol or is_index:
+                    if self.service.options_manager:
+                        await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="scalper")
+        # elif prev_short >= prev_long and curr_short < curr_long:
+        #     sl = bar.close + (0.002 * bar.close)
+        #     tgt = bar.close - (0.003 * bar.close)
+        #     size = 1
+        #     if trend_ok("SELL"):
+        #         if trade_underlying:
+        #             signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
+        #             await self.service.executor.handle_signal(signal)
+        #             await self.service.notifier.notify_signal(signal)
+        #         # Trade options in high vol or for indices
+        #         if high_vol or is_index:
+        #             if self.service.options_manager:
+        #                 await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="scalper")
 
 # Extension scaffolds kept commented for future reuse.
 # class ScalpStrategyAdapter(ScalpStrategy):

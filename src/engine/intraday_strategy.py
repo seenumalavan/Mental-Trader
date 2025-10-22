@@ -38,6 +38,12 @@ class IntradayStrategy:
                 return True
             return higher_timeframe_trend_ok(side, bar.close, self.primary_tf, self.confirm_tf, ema_confirm)
 
+        # Check if symbol is an index (trade only options for indices)
+        is_index = symbol.startswith("NSE_INDEX")
+        # Volatility filter: high vol -> prefer options; low vol -> prefer underlying
+        high_vol = ema_primary.atr and ema_primary.atr > 0.02 * bar.close  # ATR > 2% of price
+        trade_underlying = not is_index and not high_vol  # Trade underlying only for stocks in low vol
+
         # Bullish crossover
         if prev_short <= prev_long and curr_short > curr_long:
             if not trend_ok("BUY"):
@@ -52,11 +58,14 @@ class IntradayStrategy:
                 size_calc = risk_mgr.calc_size(bar.close, sl)
                 if size_calc > 0:
                     size = size_calc
-            signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
-            await self.service.executor.handle_signal(signal)
-            await self.service.notifier.notify_signal(signal)
-            if self.service.options_manager:
-                await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="intraday")
+            if trade_underlying:
+                signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
+                await self.service.executor.handle_signal(signal)
+                await self.service.notifier.notify_signal(signal)
+            # Trade options in high vol or for indices
+            if high_vol or is_index:
+                if self.service.options_manager:
+                    await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="intraday")
         # Bearish crossover
         elif prev_short >= prev_long and curr_short < curr_long:
             if not trend_ok("SELL"):
@@ -70,8 +79,11 @@ class IntradayStrategy:
                 size_calc = risk_mgr.calc_size(bar.close, sl)
                 if size_calc > 0:
                     size = size_calc
-            signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
-            await self.service.executor.handle_signal(signal)
-            await self.service.notifier.notify_signal(signal)
-            if self.service.options_manager:
-                await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="intraday")
+            if trade_underlying:
+                signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
+                await self.service.executor.handle_signal(signal)
+                await self.service.notifier.notify_signal(signal)
+            # Trade options in high vol or for indices
+            if high_vol or is_index:
+                if self.service.options_manager:
+                    await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="intraday")

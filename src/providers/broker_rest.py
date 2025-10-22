@@ -195,80 +195,36 @@ class BrokerRest:
         pass
 
     # ---------------- Option / Derivatives Helpers -----------------
-    def get_futures_quote(self, underlying_symbol: str) -> Dict[str, Any]:
-        """Fetch an approximate futures quote non-blocking.
-
-        Placeholder: uses intraday candle endpoint to get latest close; removes run_until_complete (blocking) pattern.
-        In production: replace with dedicated quote or WebSocket state.
-        """
-        if upstox_client is None:
-            return {"last_price": 0.0, "status": "SDK_MISSING"}
+    def get_underlying_price(self, underlying_symbol: str) -> Dict[str, Any]:
+        """Fetch underlying price using Upstox HistoricalApi."""
         try:
             fut_symbol = self._derive_futures_symbol(underlying_symbol)
-            #token = self._get_instrument_token(fut_symbol)
-            # If called from within an async loop, running run_until_complete would raise
-            # "This event loop is already running". Instead, perform a synchronous fallback:
-            # 1. If loop is running, schedule a blocking call via run_in_executor and wait using asyncio.run if outside.
-            # Since this method is synchronous, we use a temporary event loop only if no loop is running.
-            try:
-                loop = asyncio.get_running_loop()
-                # We are already inside an event loop: perform a blocking call via future and wait with 'asyncio.run' not allowed.
-                # Simplest approach: use asyncio.run_coroutine_threadsafe with a helper coroutine executed on this loop.
-                # But because we only need a single blocking REST SDK call, call it directly (SDK is already synchronous).
-                data = self.historical_api.get_intra_day_candle_data(fut_symbol, "minutes", 1)
-            except RuntimeError as e:
-                # No running loop: safe to create one and execute asynchronously
-                loop = asyncio.new_event_loop()
-                try:
-                    asyncio.set_event_loop(loop)
-                    data = loop.run_until_complete(loop.run_in_executor(
-                        None,
-                        lambda: self.historical_api.get_intra_day_candle_data(fut_symbol, "minutes", 1)
-                    ))
-                finally:
-                    loop.close()
-            source = "intraday"
+            data = self.historical_api.get_intra_day_candle_data(fut_symbol, "minutes", 1)
+            
             # Fallback to historical single candle if intraday empty
             if (not data) or (not getattr(data, 'data', None)) or (not data.data.candles):
-                from_date = to_date = datetime.now() - timedelta(days=1)
+                from_to_date = pd.Timestamp.now(tz=IST) - timedelta(days=1)
+                to_date_str = from_to_date.strftime("%Y-%m-%d")
+                from_date_str = from_to_date.strftime("%Y-%m-%d")
 
-                to_date_str = to_date.strftime("%Y-%m-%d")
-                from_date_str = from_date.strftime("%Y-%m-%d")
-
-                try:
-                    data = self.historical_api.get_historical_candle_data1(
+                data = self.historical_api.get_historical_candle_data1(
                         fut_symbol,
                         "minutes",
                         1,
                         to_date=to_date_str,
                         from_date=from_date_str
                     )
-                    source = "historical_fallback"
-                except Exception as fallback_err:
-                    logger.warning("Historical fallback failed for %s: %s", fut_symbol, fallback_err)
-                    return {"last_price": 0.0, "instrument": fut_symbol, "source": "error"}
-
             last_price = 0.0
             if data and getattr(data, 'data', None) and data.data.candles:
                 last_candle = data.data.candles[-1]
                 last_price = float(last_candle[4])
             return {"last_price": last_price, "instrument": fut_symbol, "source": source}
         except Exception as e:
-            logger.warning("get_futures_quote failed: %s", e)
+            logger.warning("get_underlying_price failed: %s", e)
             return {"last_price": 0.0, "status": "ERROR"}
 
     def find_nearest_expiry(self, instrument_key: str) -> str:
-        """
-        Find the nearest expiry date for options contracts of a given underlying.
-
-        Args:
-            instrument_key (str): Instrument key of the underlying (e.g., 'NSE_INDEX|Nifty 50').
-            access_token (str): Upstox API access token.
-
-        Returns:
-            str: Nearest expiry date in 'YYYY-MM-DD' format, or None if no valid expiries found.
-        """
-
+        """Find the nearest expiry date for the given underlying instrument key."""
         try:
             # Fetch option contracts
             response = self.options_api.get_option_contracts(instrument_key)
@@ -314,10 +270,7 @@ class BrokerRest:
             return None
 
     def get_option_chain(self, instrument_key: str) -> List[Dict[str, Any]]:
-        """Fetch option chain for underlying using Upstox OptionsApi.
-
-        Returns list of dicts: symbol, strike, type, expiry, oi, iv, ltp, bid, ask
-        """
+        """Fetch option chain for the given underlying instrument key."""
         if upstox_client is None:
             return []
         try:
@@ -346,7 +299,12 @@ class BrokerRest:
                             'iv': call_greeks.iv or 0.0,
                             'ltp': call_md.ltp or 0.0,
                             'bid': call_md.bid_price or 0.0,
-                            'ask': call_md.ask_price or 0.0
+                            'ask': call_md.ask_price or 0.0,
+                            'delta': call_greeks.delta,
+                            'gamma': call_greeks.gamma,
+                            'theta': call_greeks.theta,
+                            'vega': call_greeks.vega,
+                            'rho': call_greeks.rho
                         })
                     
                     # Extract put option
@@ -362,7 +320,12 @@ class BrokerRest:
                             'iv': put_greeks.iv or 0.0,
                             'ltp': put_md.ltp or 0.0,
                             'bid': put_md.bid_price or 0.0,
-                            'ask': put_md.ask_price or 0.0
+                            'ask': put_md.ask_price or 0.0,
+                            'delta': put_greeks.delta,
+                            'gamma': put_greeks.gamma,
+                            'theta': put_greeks.theta,
+                            'vega': put_greeks.vega,
+                            'rho': put_greeks.rho
                         })
             
             logger.info(f"Fetched {len(chain)} options from Upstox API for {instrument_key}")
@@ -370,7 +333,7 @@ class BrokerRest:
         except Exception as e:
             logger.warning("Upstox option chain API failed: %s, falling back to synthetic", e)
             # Fallback to synthetic chain if API fails
-            spot_info = self.get_futures_quote(instrument_key)
+            spot_info = self.get_underlying_price(instrument_key)
             spot = spot_info.get('last_price', 0.0)
             if spot <= 0:
                 spot = 0.0
