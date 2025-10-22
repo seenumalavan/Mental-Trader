@@ -36,7 +36,7 @@ class IntradayStrategy:
             return
 
         def trend_ok(side: str) -> bool:
-            if not settings.INTRADAY_ENABLE_CONFIRM_FILTER:
+            if not settings.INTRADAY_ENABLE_TREND_CONFIRMATION:
                 return True
             return higher_timeframe_trend_ok(side, bar.close, self.primary_tf, self.confirm_tf, ema_confirm)
 

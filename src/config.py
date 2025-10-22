@@ -32,13 +32,13 @@ class Settings(BaseSettings):
     # Scalper configuration
     SCALP_PRIMARY_TIMEFRAME: str = Field("1m", env="SCALP_PRIMARY_TIMEFRAME")
     SCALP_CONFIRM_TIMEFRAME: str = Field("5m", env="SCALP_CONFIRM_TIMEFRAME")
-    SCALP_ENABLE_CONFIRM_FILTER: bool = Field(True, env="SCALP_ENABLE_CONFIRM_FILTER")
+    SCALP_ENABLE_TREND_CONFIRMATION: bool = Field(True, env="SCALP_ENABLE_TREND_CONFIRMATION")
     SCALP_ENABLE_SIGNAL_CONFIRMATION: bool = Field(True, env="SCALP_ENABLE_SIGNAL_CONFIRMATION")
     
     # Intraday configuration (configurable primary and confirmation timeframes)
     INTRADAY_PRIMARY_TIMEFRAME: str = Field("5m", env="INTRADAY_PRIMARY_TIMEFRAME")
     INTRADAY_CONFIRM_TIMEFRAME: str = Field("15m", env="INTRADAY_CONFIRM_TIMEFRAME")
-    INTRADAY_ENABLE_CONFIRM_FILTER: bool = Field(True, env="INTRADAY_ENABLE_CONFIRM_FILTER")
+    INTRADAY_ENABLE_TREND_CONFIRMATION: bool = Field(True, env="INTRADAY_ENABLE_TREND_CONFIRMATION")
     INTRADAY_ENABLE_SIGNAL_CONFIRMATION: bool = Field(True, env="INTRADAY_ENABLE_SIGNAL_CONFIRMATION")
 
     # Confirmation pipeline configuration

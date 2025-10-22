@@ -73,8 +73,8 @@ class OptionsManager:
         pos = compute_option_position(
             top.contract,
             side,
-            account_risk_cap=float(self.cfg.get('OPTION_RISK_CAP_PER_TRADE', 7500)),
-            lot_size=int(self.cfg.get('OPTION_LOT_SIZE', 50)),
+            account_risk_cap=float(self.cfg.get('OPTION_RISK_CAP_PER_TRADE', 2500)),
+            lot_size=int(self.cfg.get('OPTION_LOT_SIZE', 75)),
             mode=mode
         )
         if pos['lots'] <= 0:

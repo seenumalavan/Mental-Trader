@@ -31,7 +31,7 @@ class ScalpStrategy:
         if prev_short is None or prev_long is None:
             return
         def trend_ok(side: str) -> bool:
-            if not settings.SCALP_ENABLE_CONFIRM_FILTER:
+            if not settings.SCALP_ENABLE_TREND_CONFIRMATION:
                 return True
             return higher_timeframe_trend_ok(side, bar.close, primary_tf, confirm_tf, ema_confirm)
 
