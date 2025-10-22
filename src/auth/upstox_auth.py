@@ -57,12 +57,31 @@ async def callback(request: Request):
             'access_token': api_response.access_token
         }
         save_token(data)
-        expiry = datetime.utcnow() + timedelta(seconds=int(getattr(api_response, "expires_in", 3600)))
-        logger.info("Access token saved; expires at %s", expiry.isoformat())
-        return JSONResponse({"status": "success", "expires": expiry.isoformat()})
+        
+        # Get expiry information from token store
+        from src.auth.token_store import get_token_expiry
+        token_info = get_token_expiry()
+        
+        logger.info("Access token saved; expires at %s IST", token_info.get("expires_at"))
+        return JSONResponse({
+            "status": "success", 
+            "expires": token_info.get("expires_at"),
+            "generated_at": token_info.get("generated_at")
+        })
     except ApiException as e:
         logger.error("Token exchange failed via SDK: %s", e)
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
         logger.exception("Token exchange exception: %s", e)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@router.get("/token/status")
+async def token_status():
+    """Check current token status and expiry."""
+    try:
+        from src.auth.token_store import get_token_expiry
+        token_info = get_token_expiry()
+        return JSONResponse(token_info)
+    except Exception as e:
+        logger.exception("Token status check failed: %s", e)
         return JSONResponse({"error": str(e)}, status_code=500)

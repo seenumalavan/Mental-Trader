@@ -1,9 +1,9 @@
 import json
 import logging
 import os
+import pandas as pd
 import threading
 from datetime import datetime, timedelta
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,20 +21,30 @@ def _ensure_file():
 def save_token(token_data: dict):
     with _lock:
         _ensure_file()
+        
+        # Calculate custom expiry: next day's 3:30 AM IST or day after
+        token_generated_at = pd.Timestamp.now(tz='Asia/Kolkata')
+        
+        # Create a time object for 3:30 AM
+        expiry_time = pd.Timestamp('3:30').time()
+        
+        if token_generated_at.time() < expiry_time:
+            # Token generated before 3:30 AM, expires at 3:30 AM next day
+            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + pd.Timedelta(days=1)
+        else:
+            # Token generated at or after 3:30 AM, expires at 3:30 AM day after
+            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + pd.Timedelta(days=2)
+        
         obj = {
             "access_token": token_data.get("access_token"),
             "refresh_token": token_data.get("refresh_token"),
-            "expiry": None
+            "expiry": expiry.isoformat(),
+            "generated_at": token_generated_at.isoformat()
         }
-        expires_in = token_data.get("expires_in")
-        if expires_in:
-            expiry = datetime.utcnow() + timedelta(seconds=int(expires_in))
-            obj["expiry"] = expiry.isoformat()
-        elif token_data.get("expiry_iso"):
-            obj["expiry"] = token_data.get("expiry_iso")
+        
         with open(_store_file, "w") as f:
             json.dump(obj, f)
-        logger.info("Token saved to %s", _store_file)
+        logger.info("Token saved to %s, expires at %s IST", _store_file, expiry.isoformat())
 
 def get_token() -> str:
     with _lock:
@@ -43,16 +53,31 @@ def get_token() -> str:
             data = json.load(f)
     return data.get("access_token", "")
 
-def is_token_expired() -> bool:
+def get_token_expiry() -> dict:
+    """Get token expiry information."""
     with _lock:
         _ensure_file()
         with open(_store_file, "r") as f:
             data = json.load(f)
+    
     expiry = data.get("expiry")
+    generated_at = data.get("generated_at")
+    
     if not expiry:
-        return True
+        return {"has_token": False, "is_expired": True}
+    
     try:
-        exp_dt = datetime.fromisoformat(expiry)
-        return datetime.utcnow() >= exp_dt
+        exp_dt = pd.Timestamp.fromisoformat(expiry)
+        gen_dt = pd.Timestamp.fromisoformat(generated_at) if generated_at else None
+        now = pd.Timestamp.now(tz='Asia/Kolkata')
+        is_expired = now >= exp_dt
+        
+        return {
+            "has_token": True,
+            "is_expired": is_expired,
+            "expires_at": expiry,
+            "generated_at": generated_at,
+            "time_until_expiry": str(exp_dt - now) if not is_expired else None
+        }
     except Exception:
-        return True
+        return {"has_token": False, "is_expired": True, "error": "Invalid expiry format"}

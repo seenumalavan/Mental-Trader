@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from auth import upstox_auth
+from src.auth.token_store import get_token_expiry
 from src.config import settings
 from src.persistence.db import Database
 from src.services.scalping_service import ScalperService
@@ -119,15 +120,23 @@ print("DEBUG: FastAPI app created successfully")
 @app.get("/")
 async def root():
     """Root endpoint with system info."""
+    token_info = get_token_expiry()
+    
     return {
         "name": "Mental Trader",
         "version": "1.0.0",
         "description": "Multi-Service Algorithmic Trading System",
         "services": ["scalper", "intraday"],
+        "auth": {
+            "has_token": token_info.get("has_token", False),
+            "token_expired": token_info.get("is_expired", True),
+            "login_url": "/auth/login" if token_info.get("is_expired", True) else None
+        },
         "endpoints": {
             "health": "/health",
             "status": "/status", 
             "docs": "/docs",
+            "auth": "/auth/",
             "control": "/control/"
         }
     }
@@ -166,6 +175,21 @@ async def start_trading(request: StartTradingRequest = None):
     - {"service": "intraday", "instruments": "RELIANCE,TCS"} - Start intraday with specific stocks
     """
     try:
+        # Check token status first
+        token_info = get_token_expiry()
+        
+        if not token_info.get("has_token", False):
+            raise HTTPException(
+                status_code=401, 
+                detail="No access token found. Please authenticate first by visiting /auth/login"
+            )
+        
+        if token_info.get("is_expired", True):
+            raise HTTPException(
+                status_code=401, 
+                detail="Access token has expired. Please re-authenticate by visiting /auth/login"
+            )
+        
         service_name = "scalper"  # Default
         if request and request.service:
             service_name = request.service
@@ -193,7 +217,10 @@ async def start_trading(request: StartTradingRequest = None):
             "resolved_symbols": symbols,
             "total_instruments": len(resolved)
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        service_name = service_name if 'service_name' in locals() else "unknown"
         raise HTTPException(status_code=500, detail=f"Failed to start {service_name}: {e}")
 
 @app.post("/instruments/resolve")
