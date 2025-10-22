@@ -1,11 +1,15 @@
 import json
 import logging
 import os
-import pandas as pd
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+import pytz
+
+from src.utils.time_utils import now_ist, to_ist
 
 logger = logging.getLogger(__name__)
+
+IST = pytz.timezone('Asia/Kolkata')
 
 _lock = threading.Lock()
 _store_file = os.path.join(os.path.dirname(__file__), '../data/token_store.json')
@@ -23,18 +27,18 @@ def save_token(token_data: dict):
         _ensure_file()
         
         # Calculate custom expiry: next day's 3:30 AM IST or day after
-        token_generated_at = pd.Timestamp.now(tz='Asia/Kolkata')
+        token_generated_at = IST.localize(now_ist())
         
         # Create a time object for 3:30 AM
-        expiry_time = pd.Timestamp('3:30').time()
+        expiry_time = time(hour=3, minute=30)
         
         if token_generated_at.time() < expiry_time:
             # Token generated before 3:30 AM, expires at 3:30 AM next day
-            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + pd.Timedelta(days=1)
+            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + timedelta(days=1)
         else:
             # Token generated at or after 3:30 AM, expires at 3:30 AM day after
-            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + pd.Timedelta(days=2)
-        
+            expiry = token_generated_at.replace(hour=3, minute=30, second=0, microsecond=0) + timedelta(days=2)
+
         obj = {
             "access_token": token_data.get("access_token"),
             "refresh_token": token_data.get("refresh_token"),
@@ -67,9 +71,9 @@ def get_token_expiry() -> dict:
         return {"has_token": False, "is_expired": True}
     
     try:
-        exp_dt = pd.Timestamp.fromisoformat(expiry)
-        gen_dt = pd.Timestamp.fromisoformat(generated_at) if generated_at else None
-        now = pd.Timestamp.now(tz='Asia/Kolkata')
+        exp_dt = datetime.fromisoformat(expiry).replace(tzinfo=IST)
+        gen_dt = datetime.fromisoformat(generated_at).replace(tzinfo=IST) if generated_at else None
+        now = IST.localize(now_ist())
         is_expired = now >= exp_dt
         
         return {
@@ -79,5 +83,5 @@ def get_token_expiry() -> dict:
             "generated_at": generated_at,
             "time_until_expiry": str(exp_dt - now) if not is_expired else None
         }
-    except Exception:
+    except Exception as e:
         return {"has_token": False, "is_expired": True, "error": "Invalid expiry format"}
