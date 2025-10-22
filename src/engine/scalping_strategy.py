@@ -51,19 +51,19 @@ class ScalpStrategy:
                 if high_vol or is_index:
                     if self.service.options_manager:
                         await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="scalper")
-        # elif prev_short >= prev_long and curr_short < curr_long:
-        #     sl = bar.close + (0.002 * bar.close)
-        #     tgt = bar.close - (0.003 * bar.close)
-        #     size = 1
-        #     if trend_ok("SELL"):
-        #         if trade_underlying:
-        #             signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
-        #             await self.service.executor.handle_signal(signal)
-        #             await self.service.notifier.notify_signal(signal)
-        #         # Trade options in high vol or for indices
-        #         if high_vol or is_index:
-        #             if self.service.options_manager:
-        #                 await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="scalper")
+        elif prev_short >= prev_long and curr_short < curr_long:
+            sl = bar.close + (0.002 * bar.close)
+            tgt = bar.close - (0.003 * bar.close)
+            size = 1
+            if trend_ok("SELL"):
+                #if trade_underlying:
+                    #signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
+                    #await self.service.executor.handle_signal(signal)
+                    #await self.service.notifier.notify_signal(signal)
+                # Trade options in high vol or for indices
+                if high_vol or is_index:
+                    if self.service.options_manager:
+                        await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="scalper")
 
 # Extension scaffolds kept commented for future reuse.
 # class ScalpStrategyAdapter(ScalpStrategy):
