@@ -55,6 +55,31 @@ class Settings(BaseSettings):
     OPTION_DEBOUNCE_INTRADAY_SEC: int = Field(60, env="OPTION_DEBOUNCE_INTRADAY_SEC")
     OPTION_COOLDOWN_SEC: int = Field(300, env="OPTION_COOLDOWN_SEC")
     
+    # Sentiment Analysis Configuration
+    SENTIMENT_ENABLE: bool = Field(True, env="SENTIMENT_ENABLE")
+    SENTIMENT_UPDATE_INTERVAL_MINUTES: int = Field(5, env="SENTIMENT_UPDATE_INTERVAL_MINUTES")
+    SENTIMENT_NEWS_HOURS_BACK: int = Field(6, env="SENTIMENT_NEWS_HOURS_BACK")
+
+    # News API Keys
+    NEWSAPI_KEY: str = Field("", env="NEWSAPI_KEY")
+    ALPHA_VANTAGE_KEY: str = Field("", env="ALPHA_VANTAGE_KEY")
+    REDDIT_CLIENT_ID: str = Field("", env="REDDIT_CLIENT_ID")
+    REDDIT_CLIENT_SECRET: str = Field("", env="REDDIT_CLIENT_SECRET")
+
+    # Sentiment Analysis Settings
+    SENTIMENT_MODEL: str = Field("hybrid", env="SENTIMENT_MODEL")  # finbert, openai, hybrid
+    SENTIMENT_MIN_CONFIDENCE: float = Field(0.6, env="SENTIMENT_MIN_CONFIDENCE")
+    SENTIMENT_THRESHOLD: float = Field(0.3, env="SENTIMENT_THRESHOLD")
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str = Field("", env="OPENAI_API_KEY")
+    OPENAI_MODEL: str = Field("gpt-4", env="OPENAI_MODEL")
+
+    # Sentiment Filter Configuration
+    SENTIMENT_FILTER_ENABLE_EXTREME_BLOCK: bool = Field(True, env="SENTIMENT_FILTER_ENABLE_EXTREME_BLOCK")
+    SENTIMENT_FILTER_ENABLE_ALIGNMENT: bool = Field(True, env="SENTIMENT_FILTER_ENABLE_ALIGNMENT")
+    SENTIMENT_FILTER_EXTREME_THRESHOLD: float = Field(0.8, env="SENTIMENT_FILTER_EXTREME_THRESHOLD")
+
     # Application
     APP_PORT: int = Field(8000, env="APP_PORT")
 

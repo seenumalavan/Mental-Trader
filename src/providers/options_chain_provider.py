@@ -72,8 +72,7 @@ class OptionsChainProvider:
                     delta=item.get('delta'),
                     gamma=item.get('gamma'),
                     theta=item.get('theta'),
-                    vega=item.get('vega'),
-                    rho=item.get('rho')
+                    vega=item.get('vega')
                 )
                 new_contracts.append(oc)
             except Exception as e:

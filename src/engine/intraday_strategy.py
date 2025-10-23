@@ -26,6 +26,8 @@ class IntradayStrategy:
         self.trend_period = trend_period or long_period
 
     async def on_bar_close(self, symbol: str, timeframe: str, bar: Any, ema_primary, ema_confirm):
+        """Process bar close event for intraday strategy."""
+        logger.debug(f"Intraday on_bar_close: {symbol} {timeframe} close={bar.close:.2f}")
         if timeframe != self.primary_tf:
             return
         prev_short = ema_primary.prev_short
@@ -37,8 +39,11 @@ class IntradayStrategy:
 
         def trend_ok(side: str) -> bool:
             if not settings.INTRADAY_ENABLE_TREND_CONFIRMATION:
+                logger.debug(f"Intraday {symbol}: Trend confirmation disabled, allowing {side} signal")
                 return True
-            return higher_timeframe_trend_ok(side, bar.close, self.primary_tf, self.confirm_tf, ema_confirm)
+            result = higher_timeframe_trend_ok(side, bar.close, self.primary_tf, self.confirm_tf, ema_confirm)
+            logger.debug(f"Intraday {symbol}: Trend check for {side} signal - {'PASS' if result else 'FAIL'}")
+            return result
 
         # Check if symbol is an index (trade only options for indices)
         is_index = symbol.startswith("NSE_INDEX")
@@ -48,16 +53,24 @@ class IntradayStrategy:
 
         # Bullish crossover
         if prev_short <= prev_long and curr_short > curr_long:
+            logger.debug(f"Intraday {symbol}: EMA crossover BUY signal detected")
             if not trend_ok("BUY"):
+                logger.debug(f"Intraday {symbol}: BUY signal rejected by trend filter")
                 return
             # Signal confirmation with RSI, CPR, price action
             if settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION:
+                logger.debug(f"Intraday {symbol}: Checking signal confirmation for BUY")
                 recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
                 if recent_bars:
                     result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
                     if not result["confirmed"]:
-                        logger.info(f"BUY signal rejected for {symbol}: {result['reasons']}")
+                        logger.info(f"Intraday BUY signal rejected for {symbol}: {result['reasons']}")
                         return
+                    else:
+                        logger.debug(f"Intraday {symbol}: BUY signal confirmed")
+                else:
+                    logger.warning(f"Intraday {symbol}: No recent bars for BUY signal confirmation")
+                    return
             # Stop/target scale: wider for larger timeframe entries
             scale = 0.004 if self.primary_tf in ("5m", "10m") else 0.006
             sl = bar.close - (scale * bar.close)
@@ -66,38 +79,42 @@ class IntradayStrategy:
             size = 1
             if risk_mgr:
                 size_calc = risk_mgr.calc_size(bar.close, sl)
+                logger.debug(f"Intraday {symbol}: Risk manager calculated size {size_calc} for price {bar.close:.2f}, sl {sl:.2f}")
                 if size_calc > 0:
                     size = size_calc
             
-            # Signal confirmation with RSI, CPR, price action
-            if settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION:
-                recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
-                if recent_bars:
-                    result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
-                    if not result["confirmed"]:
-                        logger.info(f"BUY signal rejected for {symbol}: {result['reasons']}")
-                        return
+            logger.info(f"Intraday BUY signal generated for {symbol}: price={bar.close:.2f}, sl={sl:.2f}, tgt={tgt:.2f}, size={size}")
             
             if trade_underlying:
+                logger.debug(f"Intraday {symbol}: Executing underlying BUY order")
                 signal = Signal(symbol=symbol, side="BUY", price=bar.close, size=size, stop_loss=sl, target=tgt)
                 await self.service.executor.handle_signal(signal)
                 await self.service.notifier.notify_signal(signal)
             # Trade options in high vol or for indices
             if high_vol or is_index:
+                logger.debug(f"Intraday {symbol}: Publishing BUY signal to options manager")
                 if self.service.options_manager:
                     await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="BUY", price=bar.close, timeframe=timeframe, origin="intraday")
         # Bearish crossover
         elif prev_short >= prev_long and curr_short < curr_long:
+            logger.debug(f"Intraday {symbol}: EMA crossover SELL signal detected")
             if not trend_ok("SELL"):
+                logger.debug(f"Intraday {symbol}: SELL signal rejected by trend filter")
                 return
             # Signal confirmation with RSI, CPR, price action
             if settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION:
+                logger.debug(f"Intraday {symbol}: Checking signal confirmation for SELL")
                 recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
                 if recent_bars:
                     result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
                     if not result["confirmed"]:
-                        logger.info(f"SELL signal rejected for {symbol}: {result['reasons']}")
+                        logger.info(f"Intraday SELL signal rejected for {symbol}: {result['reasons']}")
                         return
+                    else:
+                        logger.debug(f"Intraday {symbol}: SELL signal confirmed")
+                else:
+                    logger.warning(f"Intraday {symbol}: No recent bars for SELL signal confirmation")
+                    return
             scale = 0.004 if self.primary_tf in ("5m", "10m") else 0.006
             sl = bar.close + (scale * bar.close)
             tgt = bar.close - (scale * 1.5 * bar.close)
@@ -105,17 +122,11 @@ class IntradayStrategy:
             size = 1
             if risk_mgr:
                 size_calc = risk_mgr.calc_size(bar.close, sl)
+                logger.debug(f"Intraday {symbol}: Risk manager calculated size {size_calc} for price {bar.close:.2f}, sl {sl:.2f}")
                 if size_calc > 0:
                     size = size_calc
             
-            # Signal confirmation with RSI, CPR, price action
-            if settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION:
-                recent_bars, daily_ref = await self.service._confirmation_ctx(symbol, timeframe)
-                if recent_bars:
-                    result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
-                    if not result["confirmed"]:
-                        logger.info(f"SELL signal rejected for {symbol}: {result['reasons']}")
-                        return
+            logger.info(f"Intraday SELL signal generated for {symbol}: price={bar.close:.2f}, sl={sl:.2f}, tgt={tgt:.2f}, size={size}")
             
             #if trade_underlying:
                 #signal = Signal(symbol=symbol, side="SELL", price=bar.close, size=size, stop_loss=sl, target=tgt)
@@ -123,5 +134,6 @@ class IntradayStrategy:
                 #await self.service.notifier.notify_signal(signal)
             # Trade options in high vol or for indices
             if high_vol or is_index:
+                logger.debug(f"Intraday {symbol}: Publishing SELL signal to options manager")
                 if self.service.options_manager:
                     await self.service.options_manager.publish_underlying_signal(symbol=symbol, side="SELL", price=bar.close, timeframe=timeframe, origin="intraday")

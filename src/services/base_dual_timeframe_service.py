@@ -139,13 +139,13 @@ class DualTimeframeServiceBase:
                         candles_confirm = valid[-self.warmup_bars:]
                     except Exception as e:
                         logger.warning("Confirm aggregation failed for %s: %s", symbol, e)
-            ema_p = EMAState(symbol, self.primary_tf, self.short_period, self.long_period)
+            ema_p = EMAState(key, self.primary_tf, self.short_period, self.long_period)
             ema_p.initialize_from_candles(candles_primary)
-            self.ema_primary[symbol] = ema_p
+            self.ema_primary[key] = ema_p
             if self.confirm_tf != self.primary_tf:
-                ema_c = EMAState(symbol, self.confirm_tf, self.short_period, self.long_period)
+                ema_c = EMAState(key, self.confirm_tf, self.short_period, self.long_period)
                 ema_c.initialize_from_candles(candles_confirm)
-                self.ema_confirm[symbol] = ema_c
+                self.ema_confirm[key] = ema_c
         keys = [i['instrument_key'] for i in instruments]
         await self.ws.subscribe(keys)
         self.ws.on_tick = self._on_tick
@@ -191,6 +191,8 @@ class DualTimeframeServiceBase:
         logger.info("Service stopped")
 
     async def _on_tick(self, tick: Dict[str, Any]):
+        """Process incoming market data tick."""
+        logger.debug(f"Processing tick: {tick.get('symbol')} @ {tick.get('price')}")
         # First, forward tick to execution monitoring (underlying & option positions)
         try:
             if hasattr(self, 'executor') and self.executor:

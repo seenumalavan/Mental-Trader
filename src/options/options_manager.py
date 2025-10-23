@@ -46,13 +46,16 @@ class OptionsManager:
                                         price: float,
                                         timeframe: str,
                                         origin: str):
+        logger.debug(f"Options manager received underlying signal: {symbol} {side} @ {price:.2f} from {origin}")
         if not self.cfg.get('OPTION_ENABLE', False):
+            logger.debug("Options trading disabled, ignoring signal")
             return
         if self._cooldown_active(side):
             logger.info("Options cooldown active for side=%s; skipping", side)
             return
         mode = 'scalper' if origin == 'scalper' else 'intraday'
         debounce = int(self.cfg.get('OPTION_DEBOUNCE_SEC', 30)) if mode == 'scalper' else int(self.cfg.get('OPTION_DEBOUNCE_INTRADAY_SEC', 60))
+        logger.debug(f"Options mode: {mode}, debounce: {debounce}s")
         # Always fetch fresh option chain upon underlying signal for immediate OI/IV data
         chain = self.provider.fetch_option_chain()
         metrics = compute_chain_metrics(chain)

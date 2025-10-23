@@ -300,8 +300,7 @@ class BrokerRest:
                             'delta': call_greeks.delta,
                             'gamma': call_greeks.gamma,
                             'theta': call_greeks.theta,
-                            'vega': call_greeks.vega,
-                            'rho': call_greeks.rho
+                            'vega': call_greeks.vega
                         })
                     
                     # Extract put option
@@ -321,8 +320,7 @@ class BrokerRest:
                             'delta': put_greeks.delta,
                             'gamma': put_greeks.gamma,
                             'theta': put_greeks.theta,
-                            'vega': put_greeks.vega,
-                            'rho': put_greeks.rho
+                            'vega': put_greeks.vega
                         })
             
             logger.info(f"Fetched {len(chain)} options from Upstox API for {instrument_key}")

@@ -20,7 +20,6 @@ class OptionContract:
     gamma: Optional[float] = None
     theta: Optional[float] = None
     vega: Optional[float] = None
-    rho: Optional[float] = None
 
     @property
     def oi_change(self) -> Optional[int]:

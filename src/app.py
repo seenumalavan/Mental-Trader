@@ -11,6 +11,9 @@ from src.config import settings
 from src.persistence.db import Database
 from src.services.scalping_service import ScalperService
 from src.services.intraday_service import IntradayService
+from src.services.sentiment_service import SentimentService
+from src.engine.sentiment_filter import SentimentFilter
+from src.api.sentiment_api import router as sentiment_router, init_sentiment_services
 from src.utils.instruments import resolve_instruments
 from src.utils.logging_config import configure_logging
 
@@ -43,6 +46,18 @@ try:
 except Exception as e:
     print(f"DEBUG: Failed to create IntradayService: {e}")
     services['intraday'] = None
+
+# Sentiment services
+try:
+    sentiment_svc = SentimentService()
+    sentiment_filt = SentimentFilter(sentiment_svc)
+    services['sentiment'] = sentiment_svc
+    services['sentiment_filter'] = sentiment_filt
+    print("DEBUG: Sentiment services created successfully")
+except Exception as e:
+    print(f"DEBUG: Failed to create sentiment services: {e}")
+    services['sentiment'] = None
+    services['sentiment_filter'] = None
 
 
 async def initialize_database():
@@ -114,6 +129,7 @@ app = FastAPI(
 )
 
 app.include_router(upstox_auth.router)
+app.include_router(sentiment_router, prefix="/sentiment", tags=["sentiment"])
 
 print("DEBUG: FastAPI app created successfully")
 
@@ -198,6 +214,15 @@ async def start_trading(request: StartTradingRequest = None):
             raise HTTPException(status_code=400, detail=f"Service '{service_name}' not available")
         
         service_instance = services[service_name]
+        
+        # Stop any other running services to prevent WebSocket conflicts
+        for name, svc in services.items():
+            if name != service_name and svc and svc._running:
+                logger.info(f"Stopping {name} service to prevent WebSocket conflicts")
+                try:
+                    await svc.stop()
+                except Exception as e:
+                    logger.warning(f"Error stopping {name} service: {e}")
         
         instruments_input = "nifty"  # Default
         if request and request.instruments:

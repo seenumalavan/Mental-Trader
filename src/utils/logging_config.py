@@ -9,7 +9,7 @@ def configure_logging():
     formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
     handler.setFormatter(formatter)
     root.addHandler(handler)
-    root.setLevel(logging.INFO)
+    root.setLevel(logging.DEBUG)
 
 # Make sure the function is available for import
 __all__ = ['configure_logging']

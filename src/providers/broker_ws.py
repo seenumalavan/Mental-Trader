@@ -45,16 +45,24 @@ class BrokerWS:
 
     async def connect(self):
         """Connect to Upstox WebSocket feed."""
+        if self._running:
+            logger.info("WebSocket already connected")
+            return
         self._loop = asyncio.get_running_loop()
         self._running = True
         logger.info("Upstox WebSocket connection initiated")
 
     async def disconnect(self):
         """Disconnect from Upstox WebSocket."""
-        if self.streamer and self._running:
-            self.streamer.disconnect()
-            self._running = False
-            logger.info("Upstox WebSocket disconnected")
+        if not self._running:
+            return
+        if self.streamer:
+            try:
+                self.streamer.disconnect()
+                logger.info("Upstox WebSocket disconnected")
+            except Exception as e:
+                logger.warning(f"Error during WebSocket disconnect: {e}")
+        self._running = False
 
     async def subscribe(self, symbols: List[str]):
         """Subscribe to market data for given symbols or categories."""
@@ -111,12 +119,23 @@ class BrokerWS:
                 logger.warning(f"No valid instruments found for: {symbols}")
                 return
 
+            # Disconnect any existing streamer before creating a new one
+            if self.streamer:
+                try:
+                    self.streamer.disconnect()
+                    logger.info("Disconnected existing WebSocket streamer")
+                except Exception as e:
+                    logger.warning(f"Error disconnecting existing streamer: {e}")
+                self.streamer = None
+
             # Initialize Upstox streamer
             config = upstox_client.Configuration()
             config.access_token = self.access_token
             api_client = ApiClient(config)
             self.streamer = MarketDataStreamerV3(api_client, unique_keys, "ltpc")
             self.streamer.on("message", self._process_message)
+            self.streamer.on("error", self._handle_error)
+            self.streamer.on("close", self._handle_close)
             self.streamer.connect()
             
             logger.info(f"Subscribed to {len(unique_keys)} instruments from input: {symbols}")
@@ -156,6 +175,16 @@ class BrokerWS:
                         logger.warning("Event loop not available for async callback")
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+
+    def _handle_error(self, error):
+        """Handle WebSocket errors."""
+        logger.error(f"WebSocket error: {error}")
+        self._running = False
+
+    def _handle_close(self, code=None, reason=None):
+        """Handle WebSocket connection close."""
+        logger.warning(f"WebSocket connection closed: code={code}, reason={reason}")
+        self._running = False
 
     def _symbol_to_key(self, symbol: str) -> str:
         """Convert trading symbol to Upstox instrument key."""

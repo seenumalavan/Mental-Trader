@@ -63,6 +63,7 @@ class Notifier:
         Args:
             signal: Object containing signal data (trade or option).
         """
+        logger.debug(f"Sending notification for signal: {getattr(signal, 'symbol', getattr(signal, 'contract_symbol', 'unknown'))}")
         # Determine signal type and build message fields
         is_option = hasattr(signal, "contract_symbol")
         if is_option:
