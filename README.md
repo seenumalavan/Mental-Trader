@@ -12,6 +12,8 @@ A production-ready algorithmic trading system built with Python and FastAPI. Fea
 - **Risk Management**: Position sizing and daily loss limits
 - **Monitoring**: Health endpoints and notification webhooks
 - **Web Interface**: FastAPI-based REST API for control and monitoring
+- **Sentiment Analysis**: AI-powered news sentiment analysis and market impact assessment
+- **News Integration**: Multi-source news collection from financial APIs and social media
 
 ## Quick Start
 
@@ -101,6 +103,18 @@ src/
 - `POST /control/stop` - Stop the trading system
 - `GET /docs` - Interactive API documentation
 
+### Sentiment Analysis Endpoints
+
+- `GET /sentiment/health` - Sentiment service health check
+- `GET /sentiment/symbol/{symbol}` - Get sentiment context for a symbol
+- `POST /sentiment/filter` - Filter trading signals based on sentiment
+- `GET /sentiment/news/{symbol}` - Get recent news for a symbol
+- `POST /sentiment/impact` - Analyze market impact of specific news
+- `GET /sentiment/market` - Get overall market sentiment
+- `GET /sentiment/alerts` - Get sentiment-based alerts
+- `GET /sentiment/wait-check/{symbol}` - Check if should wait for better sentiment
+- `GET /sentiment/stats` - Get sentiment analysis statistics
+
 ## Configuration
 
 Key configuration parameters in `.env`:
@@ -112,6 +126,23 @@ Key configuration parameters in `.env`:
 | `EMA_SHORT` | Short EMA period | `8` |
 | `EMA_LONG` | Long EMA period | `21` |
 | `NOTIFIER_WEBHOOK` | Webhook URL for trade notifications | - |
+
+### Sentiment Analysis Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `SENTIMENT_ENABLE` | Enable sentiment analysis features | `true` |
+| `SENTIMENT_UPDATE_INTERVAL_MINUTES` | How often to update sentiment data | `5` |
+| `SENTIMENT_NEWS_HOURS_BACK` | Hours of news history to collect | `6` |
+| `NEWSAPI_KEY` | NewsAPI key for news collection | - |
+| `ALPHA_VANTAGE_KEY` | Alpha Vantage API key | - |
+| `REDDIT_CLIENT_ID` | Reddit API client ID | - |
+| `REDDIT_CLIENT_SECRET` | Reddit API client secret | - |
+| `SENTIMENT_MODEL` | Sentiment analysis model (finbert, openai, hybrid) | `hybrid` |
+| `OPENAI_API_KEY` | OpenAI API key for impact analysis | - |
+| `SENTIMENT_MIN_CONFIDENCE` | Minimum confidence for sentiment filtering | `0.6` |
+| `SENTIMENT_FILTER_ENABLE_EXTREME_BLOCK` | Block signals on extreme sentiment | `true` |
+| `SENTIMENT_FILTER_ENABLE_ALIGNMENT` | Require sentiment-signal alignment | `true` |
 
 ## Development
 
@@ -130,168 +161,55 @@ python -m pytest tests/
 
 ### Database Migrations
 
-SQL migrations are located in `src/scripts/migrate_db.sql`.
+SQL migrations are located in `src/scripts/migrate_db.sql` and `src/scripts/migrate_sentiment_db.sql`.
 
-## Production Deployment
+## Sentiment Analysis
 
-1. Set up a PostgreSQL database
-2. Configure environment variables for production
-3. Set up monitoring and alerting
-4. Configure webhook notifications
-5. Implement proper error handling and logging
+Mental Trader includes comprehensive sentiment analysis capabilities that enhance trading decisions with market news and social sentiment data.
 
-## License
+### Features
 
-This project is for educational and development purposes. Please ensure compliance with all applicable trading regulations and broker terms of service.
+- **Multi-Source News Collection**: Aggregates news from financial APIs (Alpha Vantage, NewsAPI), RSS feeds (Yahoo Finance), and social media (Reddit)
+- **AI-Powered Sentiment Analysis**: Uses transformer models (FinBERT, Twitter RoBERTa) and OpenAI GPT for accurate sentiment scoring
+- **Market Impact Assessment**: Analyzes how news affects price direction, volatility, and trading recommendations
+- **Signal Filtering**: Filters trading signals based on sentiment alignment and extreme sentiment conditions
+- **Real-time Alerts**: Generates alerts for significant sentiment changes and market events
 
-## Support
+### Usage Examples
 
-For issues and questions, please check the logs and ensure all environment variables are properly configured.
-
-
-
-### Execution Flow (Updated)
-
-Below is an updated high-level flow covering the dual-timeframe design and integrated Options Manager.
-
-```
-         +----------------+
-         |   config.py    |  <-- Settings (EMA, risk, option flags)
-         +--------+-------+
-          |
-         start()  v
- +----------------------------------+    historical + intraday      +--------------------+
- | DualTimeframeService (Scalp/Intraday) +--------------------------->+    BrokerRest      |
- |  - resolve_instruments           |                               +--------------------+
- |  - load/persist warmup candles   |    subscribe ticks             +--------------------+
- |  - build strategy                +------------------------------->+    BrokerWS        |
- |  - init OptionsManager (if enabled)                              +--------------------+
- +---------------+------------------+
-         |
-         | on_tick(tick)
-         v
-      +--------------+     closed bars      +------------------+
-      |  BarBuilder  +--------------------->+ EMAState primary  |
-      +------+-------+                      +------------------+
-         |                                  |
-         | candle aggregation (pandas)       v
-         |                             EMAState confirm
-         |                                  |
-         |                                  v
-         |                           Strategy.on_bar_close()
-         |                                  |
-         |                          Underlying Signal (BUY/SELL)
-         |                                  |
-         |                            +-----+------+---------------------------+
-         |                            | publish to OptionsManager (if enabled) |
-         |                            +-------------+--------------------------+
-         |                                          |
-         |                                    OptionSignal (ranked strike)
-         |                                          |
-         |                                          v
-         v                                  +------------------+
-    Database.persist_candle()                   |    Executor*     |  (*option path TBD)
-         |                                  +------------------+
-         v                                          |
-   Database.upsert_ema_state()                           v
-         |                                    BrokerRest.place_order()
-         v                                          |
-      +------------------+                             v
-      |    Notifier      | <---- underlying and option signals (webhook/email)
-      +------------------+
-
-OptionSignal selection pipeline:
-  Underlying Signal -> OptionsManager -> OptionsChainProvider -> Analyzer.rank_strikes()
-  -> PositionSizing.compute_option_position() -> emit OptionSignal
-
-Persistence additions:
-  - Trades table (underlying)
-  - option_trades table (options) via Database.insert_option_trade()
-
-Time handling: naive local timestamps (IST) stored & compared uniformly.
+**Check Symbol Sentiment:**
+```bash
+curl http://localhost:8000/sentiment/symbol/RELIANCE
 ```
 
-### Component Responsibilities
+**Filter a Trading Signal:**
+```bash
+curl -X POST http://localhost:8000/sentiment/filter \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "RELIANCE", "side": "BUY", "price": 2500.0}'
+```
 
-| Component | Responsibility |
-|-----------|----------------|
-| `DualTimeframeServiceBase` | Orchestrates data loading, WebSocket ticks, bar construction, EMA updates, and strategy invocation for both timeframes. |
-| `BarBuilder` | Accumulates ticks into time-bucketed bars for the primary timeframe. |
-| Confirm Aggregation | Resamples primary bars into confirm timeframe using pandas (in-memory). |
-| `EMAState` | Maintains rolling EMA calculations for short and long periods. |
-| Strategy (`ScalpStrategy` / `IntradayStrategy`) | Applies crossover logic and trend filter; emits underlying signals. |
-| `OptionsManager` | Debounce + cooldown; gathers chain, ranks strikes, sizes position, emits OptionSignal. |
-| `OptionsChainProvider` | Retrieves (placeholder) option chain & futures quote via `BrokerRest`. |
-| Analyzer (`options_chain_analyzer.py`) | Computes OI percentiles, IV qualities, spreads; ranks candidate strikes. |
-| Position Sizing (`option_position_sizing.py`) | Determines lot size, premium stop/target per strategy mode. |
-| `Executor` | Places underlying orders (option path pending). |
-| `Notifier` | Sends webhook/email notifications for underlying and option signals. |
-| `Database` | Persists candles, EMA states, trades, and option trades. |
+**Analyze News Impact:**
+```bash
+curl -X POST http://localhost:8000/sentiment/impact \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "RELIANCE", "title": "Reliance Q3 Results Beat Estimates", "content": "Reliance Industries reported better than expected quarterly results..."}'
+```
 
-### Future Extensions
-1. Implement real broker option chain & futures quote endpoints.
-2. Add option order placement & life-cycle management in `Executor`.
-3. Enhance risk checks (per-strike OI saturation, max open option positions).
-4. Expand test coverage: SELL signals, cooldown, debounce, persistence, IST timestamp assertions.
-5. Add PnL attribution per leg (underlying vs derivative). 
+### Integration with Trading Strategies
 
+Sentiment analysis integrates with existing trading strategies through:
 
-Old application flow:
+1. **Signal Confirmation**: Sentiment filters can veto signals that oppose market sentiment
+2. **Position Sizing**: Reduce position sizes when sentiment is uncertain or opposing
+3. **Entry Timing**: Wait for sentiment alignment before entering positions
+4. **Risk Management**: Increase stops when sentiment indicates potential reversals
 
+### Model Selection
 
-            +----------------+
-            |  config.py     |
-            +--------+-------+
-                     |
-        start()      v
-+--------------------------+     historical/intraday       +--------------------+
-|    ScalperService        +------------------------------->+   BrokerRest       |
-|                          |                                +--------------------+
-|  resolve_instruments     |     ticks subscribe            +--------------------+
-|  seed EMA states         +------------------------------->+    BrokerWS        |
-|  set ws.on_tick          |                                +--------------------+
-+-------------+------------+
-              |
-              | on_tick(tick)
-              v
-       +--------------+     closed bars      +-----------------+
-       |  BarBuilder  +--------------------->+  EMAState(1m)   |
-       +------+-------+                      +-----------------+
-              |                                  |
-              |                                  v
-              |                             ScalpStrategy
-              |                                  |
-              |                             Signal (BUY/SELL)
-              |                                  v
-              |                             Executor -> BrokerRest.place_order()
-              |                                  |
-              v                                  v
-        Database.persist_candle()         Notifier.notify_signal()
+Choose the appropriate sentiment model based on your needs:
 
-## Key Actors & Roles (Summary)
-
-This section reiterates the core moving parts for quick orientation (added without altering previous sections).
-
-| Actor | Layer | Role | Notes |
-|-------|-------|------|-------|
-| `config.py` | Config | Centralizes runtime settings (EMA periods, feature flags, option params) | Loaded once on startup via Pydantic settings. |
-| `DualTimeframeServiceBase` | Service Orchestration | Boots data, subscribes ticks, aggregates bars, manages EMA states, invokes strategies | Parent for scalping/intraday services; houses shared `OptionsManager`. |
-| `BarBuilder` | Engine | Converts streaming ticks -> completed bars for primary timeframe | Emits closed bars consumed by service/strategy. |
-| Confirm Aggregation (pandas) | Engine | Resamples primary bars to confirm timeframe in-memory | Not persisted unless configured; provides higher-timeframe trend context. |
-| `EMAState` | Engine | Maintains rolling short & long EMA values + previous values for crossover detection | Updated on each closed bar. |
-| `ScalpStrategy` / `IntradayStrategy` | Strategy | Detect EMA crossovers, apply optional trend filter, generate underlying signals | Publishes to executor + notifier + options layer if enabled. |
-| `OptionsManager` | Options Orchestration | Debounce chain fetch, rank strikes, size position, emit `OptionSignal` | Enforces cooldown per side to avoid duplicate rapid trades. |
-| `OptionsChainProvider` | Data Provider | Fetch option chain & futures quote; retain last snapshot for OI deltas | Currently uses placeholder REST methods. |
-| Analyzer (`options_chain_analyzer.py`) | Analytics | Compute PCR, IV stats, rank candidate strikes with weighted score | Filters by OI percentile, spread, distance, IV quality. |
-| Position Sizing (`option_position_sizing.py`) | Risk | Translate premium & risk cap -> lots + stop/target premiums | Different stop/target % for scalper vs intraday mode. |
-| `Executor` | Execution | Places underlying (and future option) orders through `BrokerRest` | Option order path still to be implemented. |
-| `BrokerWS` | IO | Provides real-time ticks for instruments | Feeds `BarBuilder`. |
-| `BrokerRest` | IO | Historical/intraday candles, (future) order placement, option chain, futures quote | Option endpoints currently stubbed. |
-| `Database` | Persistence | Stores candles, EMA state, trades, option trades | Ensures warm restart capability & audit trail. |
-| `Notifier` | Integration | Sends trade & option signals via webhook/email | Formats both underlying and option signal payloads. |
-| `risk_manager.py` | Risk | (If used) Adjusts position sizing for underlying trades | Called inside strategies before creating Signals. |
-| `metrics.py` | Monitoring | Collects performance/health metrics (if implemented) | Extensible for dashboards. |
-| `time_utils.now_ist` | Utility | Supplies naive IST timestamps | Keeps consistency across persistence and signals. |
-| Tests (`tests/`) | QA | Validate bar building, strategy logic, (future) options path | Need expansion for options cooldown/debounce behaviors. |
-
-Use this table as a fast map when navigating or onboarding others.
+- **finbert**: Fast, local transformer model optimized for financial text
+- **openai**: Slower but more accurate using GPT models (requires API key)
+- **hybrid**: Combines both models for best accuracy with fallback
+````

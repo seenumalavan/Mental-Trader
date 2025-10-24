@@ -19,3 +19,12 @@ pandas
 requests
 matplotlib
 pytest-asyncio
+aiohttp
+feedparser
+transformers
+torch
+openai
+textblob
+vaderSentiment
+beautifulsoup4
+lxml

@@ -101,6 +101,15 @@ async def lifespan(app: FastAPI):
         #     except Exception as e:
         #         logger.error(f"Failed to start scalper service: {e}")
 
+        # Initialize sentiment services
+        if services.get('sentiment') and settings.SENTIMENT_ENABLE:
+            try:
+                await services['sentiment'].start()
+                init_sentiment_services(services['sentiment'], services['sentiment_filter'])
+                logger.info("Sentiment services started successfully")
+            except Exception as e:
+                logger.error(f"Failed to start sentiment services: {e}")
+
     print("LIFESPAN: Startup complete, yielding...")
     yield
     
@@ -111,7 +120,10 @@ async def lifespan(app: FastAPI):
     for service_name, service_instance in services.items():
         if service_instance is not None:
             try:
-                await service_instance.stop()
+                if service_name == 'sentiment':
+                    await service_instance.stop()
+                elif hasattr(service_instance, 'stop'):
+                    await service_instance.stop()
                 logger.info(f"{service_name.capitalize()} service stopped successfully")
             except Exception as e:
                 logger.error(f"Failed to stop {service_name} service: {e}")
@@ -129,7 +141,7 @@ app = FastAPI(
 )
 
 app.include_router(upstox_auth.router)
-app.include_router(sentiment_router, prefix="/sentiment", tags=["sentiment"])
+app.include_router(sentiment_router)
 
 print("DEBUG: FastAPI app created successfully")
 
@@ -153,7 +165,8 @@ async def root():
             "status": "/status", 
             "docs": "/docs",
             "auth": "/auth/",
-            "control": "/control/"
+            "control": "/control/",
+            "sentiment": "/sentiment/"
         }
     }
 
