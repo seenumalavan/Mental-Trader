@@ -147,8 +147,8 @@ class ServiceBase:
                 ema_c = EMAState(key, self.confirm_tf, self.short_period, self.long_period)
                 ema_c.initialize_from_candles(candles_confirm)
                 self.ema_confirm[symbol] = ema_c
-        keys = [i['instrument_key'] for i in instruments]
-        await self.ws.subscribe(keys)
+        symbols = [i['symbol'] for i in instruments]
+        await self.ws.subscribe(symbols)
         self.ws.on_tick = self._on_tick
         self.strategy = self.build_strategy()
         # Initialize shared OptionsManager if enabled

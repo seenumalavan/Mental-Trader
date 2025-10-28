@@ -1,9 +1,6 @@
 import logging
 from typing import Any
 
-from numpy import cross
-from tomlkit import key
-
 from src.config import settings
 from src.engine.base_strategy import BaseStrategy
 from src.engine.signal_confirmation import confirm_signal

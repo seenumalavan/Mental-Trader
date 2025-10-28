@@ -229,11 +229,66 @@ class DataMaintenanceService:
 
             for timeframe in timeframes:
                 gaps = await self._find_data_gaps(symbol, instrument_key, timeframe)
-                for gap in gaps:
-                    candles = await self._fetch_and_store_gap_data(gap)
-                    if candles > 0:
+                for gap in sorted(gaps, key=lambda g: g.start_date, reverse=True):
+                    # Use intraday_service for intraday timeframes, else broker_rest
+                    if gap.start_date.date() == pd.Timestamp.now(IST).date() and gap.end_date.date() == pd.Timestamp.now(IST).date():
+                        logger.info(f"Skipping gap fill for {gap.symbol} ({gap.timeframe}) on current date {gap.start_date.date()}")
+                        try:
+                            if self.broker_rest is None:
+                                from src.auth.token_store import get_token
+                                access_token = get_token()
+                                if access_token:
+                                    self.broker_rest = BrokerRest(
+                                        settings.UPSTOX_API_KEY,
+                                        settings.UPSTOX_API_SECRET,
+                                        access_token
+                                    )
+                                else:
+                                    logger.warning("No access token available for gap filling")
+                                    candles = []
+                            if self.broker_rest:
+                                candles = await self.broker_rest.fetch_intraday(
+                                    gap.instrument_key,
+                                    gap.timeframe
+                                )
+                            else:
+                                candles = []
+                        except Exception as e:
+                            logger.error(f"IntradayService gap fill failed for {symbol} {timeframe}: {e}")
+                            candles = []
+                    else:
+                        if self.broker_rest is None:
+                            from src.auth.token_store import get_token
+                            access_token = get_token()
+                            if access_token:
+                                self.broker_rest = BrokerRest(
+                                    settings.UPSTOX_API_KEY,
+                                    settings.UPSTOX_API_SECRET,
+                                    access_token
+                                )
+                            else:
+                                logger.warning("No access token available for gap filling")
+                                candles = []
+                        if self.broker_rest:
+                            candles = await self.broker_rest.fetch_historical_date_range(
+                                gap.instrument_key,
+                                gap.timeframe,
+                                gap.start_date,
+                                gap.end_date
+                            )
+                        else:
+                            candles = []
+
+                    if candles:
+                        await self.db.persist_candles_bulk(
+                            gap.symbol,
+                            gap.instrument_key,
+                            gap.timeframe,
+                            candles
+                        )
+                        logger.info(f"Filled gap for {gap.symbol} ({gap.timeframe}): {len(candles)} candles added")
                         gaps_filled += 1
-                        candles_added += candles
+                        candles_added += len(candles)
 
         except Exception as e:
             logger.error(f"Failed to fill data gaps for {symbol} ({instrument_key}): {e}")
@@ -272,7 +327,7 @@ class DataMaintenanceService:
                 (candles.c.timeframe == timeframe) &
                 (candles.c.ts >= start_date) & 
                 (candles.c.ts <= end_date)
-            )
+            ).order_by(candles.c.ts.desc())
             
             result = await self.db.execute(query)
             rows = result.fetchall()
@@ -281,7 +336,7 @@ class DataMaintenanceService:
             if rows:
                 timestamps = [row[0] for row in rows]
                 df = pd.DataFrame({'ts': timestamps})
-                df['date'] = pd.to_datetime(df['ts'], utc=True).dt.date
+                df['date'] = pd.to_datetime(df['ts'], utc=False).dt.date
                 date_counts = df.groupby('date').size().to_dict()
             else:
                 date_counts = {}
@@ -304,6 +359,9 @@ class DataMaintenanceService:
                 if actual_candles < expected_candles * 0.8:  # Less than 80% of expected
                     gap_start = pd.Timestamp.combine(current_date, pd.Timestamp.min.time()).replace(tzinfo=IST)
                     gap_end = pd.Timestamp.combine(current_date, pd.Timestamp.max.time()).replace(tzinfo=IST)
+
+                    if gap_start.date() == (end_date + timedelta(days=-1)).date():
+                        gap_end += pd.Timedelta(days=1)
 
                     gaps.append(DataGap(
                         symbol=symbol,

@@ -101,9 +101,9 @@ class Harness:
         else:
             self.options_manager = None
         self.db = None
-        self.ema_primary = EMAState(instrument_key, primary_tf, settings.EMA_SHORT, settings.EMA_LONG)
-        self.ema_confirm = EMAState(instrument_key, confirm_tf, settings.EMA_SHORT, settings.EMA_LONG) if confirm_tf != primary_tf else None
-        self.strategy = IntradayStrategy(self, primary_tf, confirm_tf, settings.EMA_SHORT, settings.EMA_LONG)
+        self.ema_primary = EMAState(instrument_key, primary_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
+        self.ema_confirm = EMAState(instrument_key, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG) if confirm_tf != primary_tf else None
+        self.strategy = IntradayStrategy(self, primary_tf, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
     async def _confirmation_ctx(self, symbol: str, timeframe: str):
         return [], {"prev_high": None, "prev_low": None, "prev_close": None}
 

@@ -217,7 +217,7 @@ class Database:
                 
                 for b in bars:
                     ts_val = b.get('ts') if isinstance(b, dict) else b.ts
-                    
+                    logger.debug(f"Persisting candle ts={ts_val} for symbol: {symbol} and instrument_key: {instrument_key} and timeframe: {timeframe}")
                     conn.execute(text(upsert_sql), {
                         'symbol': symbol,
                         'instrument_key': instrument_key,

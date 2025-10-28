@@ -102,10 +102,10 @@ class BrokerWS:
                             self.instrument_to_symbol[key] = symbol_desc
                 else:
                     # It's an individual symbol - convert to instrument key
-                    #instrument_key = self._symbol_to_key(symbol_or_category)
-                    all_instrument_keys.append(symbol_or_category)
+                    instrument_key = self._symbol_to_key(symbol_or_category)
+                    all_instrument_keys.append(instrument_key)
                     all_symbols.append(symbol_or_category)
-                    self.instrument_to_symbol[symbol_or_category] = symbol_or_category
+                    self.instrument_to_symbol[instrument_key] = symbol_or_category
 
             # Remove duplicates while preserving order
             unique_keys = []

@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://trader:password@postgres:5432/trading_db
+      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
+      - UPSTOX_API_SECRET=${UPSTOX_API_SECRET}
+      - TZ=Asia/Kolkata
+      - PGTZ=Asia/Kolkata
+    depends_on:
+      - postgres
+    volumes:
+      - ./.env:/app/.env:ro  # Mount .env file if needed
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=trading_db
+      - POSTGRES_USER=trader
+      - POSTGRES_PASSWORD=password
+      - TZ=Asia/Kolkata
+      - PGTZ=Asia/Kolkata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"  # Expose for local access if needed
+    command:
+      - "postgres"
+      - "-c"
+      - "log_timezone=Asia/Kolkata"
+      - "-c"
+      - "timezone=Asia/Kolkata"
+
+volumes:
+  postgres_data:
