@@ -75,18 +75,18 @@ class Executor:
                 'type': 'MARKET',
                 'quantity': quantity
             }
-            # resp = await self.broker.place_order(order_payload)  # Real placement when ready
-            # order_id = resp.get("order_id") if isinstance(resp, dict) else None
-            # setattr(opt_signal, 'entry_order_id', order_id)
-            # self._open_option_positions[opt_signal.contract_symbol] = {
-            #     'quantity': quantity,
-            #     'stop': opt_signal.stop_loss_premium,
-            #     'target': opt_signal.target_premium,
-            #     'underlying_side': opt_signal.underlying_side,
-            #     'entry_price': opt_signal.premium_ltp,
-            #     'entry_order_id': order_id,
-            #     'status': 'OPEN'
-            # }
+            resp = await self.broker.place_order(order_payload)  # Real placement when ready
+            order_id = resp.get("order_id") if isinstance(resp, dict) else None
+            setattr(opt_signal, 'entry_order_id', order_id)
+            self._open_option_positions[opt_signal.contract_symbol] = {
+                'quantity': quantity,
+                'stop': opt_signal.stop_loss_premium,
+                'target': opt_signal.target_premium,
+                'underlying_side': opt_signal.underlying_side,
+                'entry_price': opt_signal.premium_ltp,
+                'entry_order_id': order_id,
+                'status': 'OPEN'
+            }
             await self.db.insert_option_trade(opt_signal)
             logger.info("Option order placed contract=%s side=%s lots=%d qty=%d id=%s stop=%s target=%s", opt_signal.contract_symbol, side, lots, quantity, order_id, opt_signal.stop_loss_premium, opt_signal.target_premium)
         except Exception:

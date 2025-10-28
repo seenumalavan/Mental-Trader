@@ -35,4 +35,4 @@ async def test_crossover_signal():
     ema.prev_short = ema.short_ema - 1
     ema.prev_long = ema.long_ema + 1
     bar = type("B", (), {"close": 105, "volume": 100})
-    await strat.on_bar_close("T", "1m", bar, ema)
+    await strat.on_bar_close("T", "TEST_KEY", "1m", bar, ema)

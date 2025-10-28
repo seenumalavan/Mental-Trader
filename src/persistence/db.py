@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import List
 
 # Simple SQLAlchemy-only approach
 try:
@@ -120,6 +121,20 @@ class Database:
         self._connected = False
         logger.info("Database disconnected")
 
+    async def execute(self, query):
+        """Execute a SQLAlchemy query and return the result."""
+        if not self._connected or not self.engine:
+            raise RuntimeError("Database not connected")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(query)
+                conn.commit()  # Commit any changes
+                return result
+        except Exception as e:
+            logger.error(f"Database query execution failed: {e}")
+            raise
+
     async def load_candles(self, symbol, instrument_key, timeframe, limit=200):
         if not self._connected or not self.engine:
             return []
@@ -147,27 +162,34 @@ class Database:
             return
             
         try:
-            # Upsert: delete existing primary key row then insert
             with self.engine.connect() as conn:
-                del_stmt = candles.delete().where(
-                    (candles.c.symbol == symbol) &
-                    (candles.c.instrument_key == instrument_key) &
-                    (candles.c.timeframe == timeframe) &
-                    (candles.c.ts == bar.ts)
-                )
-                conn.execute(del_stmt)
-                ins_stmt = candles.insert().values(
-                    symbol=symbol,
-                    instrument_key=instrument_key,
-                    timeframe=timeframe,
-                    ts=bar.ts,
-                    open=bar.open,
-                    high=bar.high,
-                    low=bar.low,
-                    close=bar.close,
-                    volume=bar.volume
-                )
-                conn.execute(ins_stmt)
+                # Simple upsert: insert if not exists, update if exists
+                from sqlalchemy import text
+                
+                upsert_sql = """
+                    INSERT INTO candles (symbol, instrument_key, timeframe, ts, open, high, low, close, volume)
+                    VALUES (:symbol, :instrument_key, :timeframe, :ts, :open, :high, :low, :close, :volume)
+                    ON CONFLICT (instrument_key, ts) DO UPDATE SET
+                        symbol = EXCLUDED.symbol,
+                        timeframe = EXCLUDED.timeframe,
+                        open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
+                        volume = EXCLUDED.volume
+                """
+                
+                conn.execute(text(upsert_sql), {
+                    'symbol': symbol,
+                    'instrument_key': instrument_key,
+                    'timeframe': timeframe,
+                    'ts': bar.ts,
+                    'open': bar.open,
+                    'high': bar.high,
+                    'low': bar.low,
+                    'close': bar.close,
+                    'volume': bar.volume
+                })
                 conn.commit()
         except Exception as e:
             logger.debug(f"Failed to persist candle: {e}")
@@ -178,28 +200,35 @@ class Database:
             
         try:
             with self.engine.connect() as conn:
+                from sqlalchemy import text
+                
+                upsert_sql = """
+                    INSERT INTO candles (symbol, instrument_key, timeframe, ts, open, high, low, close, volume)
+                    VALUES (:symbol, :instrument_key, :timeframe, :ts, :open, :high, :low, :close, :volume)
+                    ON CONFLICT (instrument_key, ts) DO UPDATE SET
+                        symbol = EXCLUDED.symbol,
+                        timeframe = EXCLUDED.timeframe,
+                        open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
+                        volume = EXCLUDED.volume
+                """
+                
                 for b in bars:
                     ts_val = b.get('ts') if isinstance(b, dict) else b.ts
-                    # Delete existing then insert
-                    del_stmt = candles.delete().where(
-                        (candles.c.symbol == symbol) &
-                        (candles.c.instrument_key == instrument_key) &
-                        (candles.c.timeframe == timeframe) &
-                        (candles.c.ts == ts_val)
-                    )
-                    conn.execute(del_stmt)
-                    ins_stmt = candles.insert().values(
-                        symbol=symbol,
-                        instrument_key=instrument_key,
-                        timeframe=timeframe,
-                        ts=ts_val,
-                        open=b.get('open') if isinstance(b, dict) else b.open,
-                        high=b.get('high') if isinstance(b, dict) else b.high,
-                        low=b.get('low') if isinstance(b, dict) else b.low,
-                        close=b.get('close') if isinstance(b, dict) else b.close,
-                        volume=b.get('volume') if isinstance(b, dict) else b.volume
-                    )
-                    conn.execute(ins_stmt)
+                    
+                    conn.execute(text(upsert_sql), {
+                        'symbol': symbol,
+                        'instrument_key': instrument_key,
+                        'timeframe': timeframe,
+                        'ts': ts_val,
+                        'open': b.get('open') if isinstance(b, dict) else b.open,
+                        'high': b.get('high') if isinstance(b, dict) else b.high,
+                        'low': b.get('low') if isinstance(b, dict) else b.low,
+                        'close': b.get('close') if isinstance(b, dict) else b.close,
+                        'volume': b.get('volume') if isinstance(b, dict) else b.volume
+                    })
                 conn.commit()
         except Exception as e:
             logger.debug(f"Failed to persist candles bulk: {e}")
@@ -303,3 +332,18 @@ class Database:
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to update option trade status: {e}")
+
+    async def get_all_symbols(self) -> List[str]:
+        """Get all symbols that have data in the database."""
+        if not self._connected or not self.engine or candles is None:
+            return []
+        
+        try:
+            from sqlalchemy import select
+            query = select(candles.c.symbol).distinct()
+            result = await self.execute(query)
+            rows = result.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            logger.error(f"Failed to get symbols: {e}")
+            return []

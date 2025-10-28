@@ -15,8 +15,17 @@ class Settings(BaseSettings):
 
     # Trading Configuration
     WARMUP_BARS: int = Field(2400, env="WARMUP_BARS")
-    EMA_SHORT: int = Field(8, env="EMA_SHORT")
-    EMA_LONG: int = Field(21, env="EMA_LONG")
+    # Deprecated: Use SCALPER_EMA_SHORT/LONG and INTRADAY_EMA_SHORT/LONG instead
+    EMA_SHORT: int = Field(8, env="EMA_SHORT")  # Deprecated
+    EMA_LONG: int = Field(21, env="EMA_LONG")   # Deprecated
+
+    # Scalper EMA configuration
+    SCALPER_EMA_SHORT: int = Field(8, env="SCALPER_EMA_SHORT")
+    SCALPER_EMA_LONG: int = Field(21, env="SCALPER_EMA_LONG")
+
+    # Intraday EMA configuration
+    INTRADAY_EMA_SHORT: int = Field(8, env="INTRADAY_EMA_SHORT")
+    INTRADAY_EMA_LONG: int = Field(21, env="INTRADAY_EMA_LONG")
     
     # Notifications
     NOTIFIER_WEBHOOK: str = Field("", env="NOTIFIER_WEBHOOK")
@@ -80,8 +89,18 @@ class Settings(BaseSettings):
     SENTIMENT_FILTER_ENABLE_ALIGNMENT: bool = Field(True, env="SENTIMENT_FILTER_ENABLE_ALIGNMENT")
     SENTIMENT_FILTER_EXTREME_THRESHOLD: float = Field(0.8, env="SENTIMENT_FILTER_EXTREME_THRESHOLD")
 
+    # Data Maintenance Configuration
+    DATA_RETENTION_DAYS: int = Field(90, env="DATA_RETENTION_DAYS")
+    GAP_FILL_ENABLED: bool = Field(True, env="GAP_FILL_ENABLED")
+    CLEANUP_ENABLED: bool = Field(True, env="CLEANUP_ENABLED")
+    MAINTENANCE_INTERVAL_HOURS: int = Field(24, env="MAINTENANCE_INTERVAL_HOURS")
+
     # Application
     APP_PORT: int = Field(8000, env="APP_PORT")
+    AUTO_START_SCALPER: bool = Field(False, env="AUTO_START_SCALPER")
+    AUTO_START_SCALPER_INSTRUMENTS: str = Field("nifty", env="AUTO_START_SCALPER_INSTRUMENTS")
+    AUTO_START_INTRADAY: bool = Field(False, env="AUTO_START_INTRADAY")
+    AUTO_START_INTRADAY_INSTRUMENTS: str = Field("indices", env="AUTO_START_INTRADAY_INSTRUMENTS")
 
     model_config = {
         "env_file": ".env",

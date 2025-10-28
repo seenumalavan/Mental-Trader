@@ -8,7 +8,7 @@ from src.config import settings
 from src.engine.bar_builder import BarBuilder
 from src.engine.ema import EMAState
 from src.execution.execution import Executor
-from src.options.options_manager import OptionsManager
+from src.services.options.options_manager import OptionsManager
 from src.persistence.db import Database
 from src.providers.broker_rest import BrokerRest
 from src.providers.broker_ws import BrokerWS
@@ -32,7 +32,7 @@ def _minutes(tf: str) -> int:
             return 60
     return 1
 
-class DualTimeframeServiceBase:
+class ServiceBase:
     """Generic service base for primary + confirm timeframe operations.
 
     Handles warmup, in-memory aggregation for confirm timeframe, EMA state management,
@@ -141,11 +141,12 @@ class DualTimeframeServiceBase:
                         logger.warning("Confirm aggregation failed for %s: %s", symbol, e)
             ema_p = EMAState(key, self.primary_tf, self.short_period, self.long_period)
             ema_p.initialize_from_candles(candles_primary)
-            self.ema_primary[key] = ema_p
+            # Store EMA state keyed by human-readable symbol (not instrument_key) so later lookups using symbol work.
+            self.ema_primary[symbol] = ema_p
             if self.confirm_tf != self.primary_tf:
                 ema_c = EMAState(key, self.confirm_tf, self.short_period, self.long_period)
                 ema_c.initialize_from_candles(candles_confirm)
-                self.ema_confirm[key] = ema_c
+                self.ema_confirm[symbol] = ema_c
         keys = [i['instrument_key'] for i in instruments]
         await self.ws.subscribe(keys)
         self.ws.on_tick = self._on_tick
@@ -156,7 +157,7 @@ class DualTimeframeServiceBase:
             chain_provider = OptionsChainProvider(self.rest)
             async def emit_option(opt_signal):
                 # Execute, persist, notify
-                logger.info("OptionSignal emitted %s %s lots=%s", opt_signal.contract_symbol, opt_signal.underlying_side, opt_signal.suggested_size_lots)
+                logger.info("OptionSignal emitted %s %s lots=%s for %s", opt_signal.contract_symbol, opt_signal.underlying_side, opt_signal.suggested_size_lots, opt_signal.underlying_symbol)
                 await self.executor.handle_option_signal(opt_signal)
                 await self.notifier.notify_signal(opt_signal)
             self.options_manager = OptionsManager(chain_provider, config={
@@ -218,7 +219,7 @@ class DualTimeframeServiceBase:
                 ema_p.update_with_close(bar.close)
                 ema_c = self.ema_confirm.get(symbol) if self.confirm_tf != self.primary_tf else None
                 if self.strategy:
-                    await self.strategy.on_bar_close(symbol, tf, bar, ema_p, ema_c)
+                    await self.strategy.on_bar_close(symbol, key, tf, bar, ema_p, ema_c)
                 await self.db.persist_candle(symbol, key, tf, bar)
             elif tf == self.confirm_tf and self.confirm_tf != self.primary_tf:
                 ema_c = self.ema_confirm.get(symbol)

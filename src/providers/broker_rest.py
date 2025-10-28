@@ -109,6 +109,48 @@ class BrokerRest:
             logger.error(f"Error fetching historical data for {symbol}: {e}")
             return []
 
+    async def fetch_historical_date_range(self, symbol: str, timeframe: str, from_date: datetime, to_date: datetime) -> List[Dict]:
+        """Fetch historical candle data for a specific date range."""
+        try:
+            # Convert interval format (1m -> interval=1, unit=minute)
+            interval, unit = self._convert_interval(timeframe)
+
+            # Format dates for API
+            from_date_str = from_date.strftime("%Y-%m-%d")
+            to_date_str = to_date.strftime("%Y-%m-%d")
+
+            logger.info(f"Fetching historical data for {symbol} from {from_date_str} to {to_date_str}")
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.historical_api.get_historical_candle_data1(
+                    symbol,
+                    unit,
+                    interval,
+                    to_date=to_date_str,
+                    from_date=from_date_str
+                )
+            )
+
+            candles = []
+            if response.data and response.data.candles:
+                for candle in response.data.candles:
+                    candles.append({
+                        "ts": candle[0],  # timestamp
+                        "open": float(candle[1]),
+                        "high": float(candle[2]),
+                        "low": float(candle[3]),
+                        "close": float(candle[4]),
+                        "volume": int(candle[5]) if len(candle) > 5 else 0
+                    })
+
+            logger.info(f"Fetched {len(candles)} historical candles for {symbol} ({from_date_str} to {to_date_str})")
+            return candles
+        except Exception as e:
+            logger.error(f"Error fetching historical data for date range {symbol}: {e}")
+            return []
+
     async def fetch_intraday(self, symbol: str, timeframe: str = "1m") -> List[Dict]:
         """Fetch current day's intraday candles (from today's open until now)."""
         try:
@@ -215,7 +257,7 @@ class BrokerRest:
             if data and getattr(data, 'data', None) and data.data.candles:
                 last_candle = data.data.candles[-1]
                 last_price = float(last_candle[4])
-            return {"last_price": last_price, "instrument": fut_symbol, "source": source}
+            return {"last_price": last_price, "instrument": fut_symbol, "source": "historical_api"}
         except Exception as e:
             logger.warning("get_underlying_price failed: %s", e)
             return {"last_price": 0.0, "status": "ERROR"}
@@ -359,6 +401,23 @@ class BrokerRest:
                         'ask': ask
                     })
             return chain
+
+    def get_option_contracts(self, instrument_key: str) -> List[Dict[str, Any]]:
+        """Fetch option contracts for the given underlying instrument key."""
+        try:
+            response = self.options_api.get_option_contracts(instrument_key)
+            contracts = []
+            for contract in response.data:
+                contracts.append({
+                    'strike': contract.strike_price,
+                    'kind': 'CALL' if contract.instrument_type == 'CE' else 'PUT',
+                    'expiry': contract.expiry.strftime('%Y-%m-%d') if contract.expiry else None,
+                    'trading_symbol': contract.trading_symbol or contract.instrument_key
+                })
+            return contracts
+        except Exception as e:
+            logger.warning("get_option_contracts failed: %s", e)
+            return []
 
     def _derive_futures_symbol(self, underlying_symbol: str) -> str:
         """Derive a futures symbol token placeholder from an underlying equity/index symbol.

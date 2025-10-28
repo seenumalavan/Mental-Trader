@@ -20,6 +20,7 @@ class OptionContract:
     gamma: Optional[float] = None
     theta: Optional[float] = None
     vega: Optional[float] = None
+    trading_symbol: Optional[str] = None
 
     @property
     def oi_change(self) -> Optional[int]:
@@ -50,8 +51,10 @@ class RankedStrike:
 
 @dataclass
 class OptionSignal:
+    underlying_symbol: str
     underlying_side: str  # 'BUY' or 'SELL'
     contract_symbol: str
+    trading_symbol: str
     strike: int
     kind: str
     premium_ltp: float

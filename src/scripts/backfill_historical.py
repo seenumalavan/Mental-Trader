@@ -10,6 +10,13 @@ Categories and symbols are resolved via instruments file (see src/utils/instrume
 import argparse
 import asyncio
 import logging
+import sys
+from pathlib import Path
+
+# Path bootstrap to allow direct execution without -m
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.auth.token_store import get_token
 from src.config import settings

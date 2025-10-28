@@ -1,83 +1,102 @@
+// Use IntelliSense to learn about possible attributes.
+// Hover to view descriptions of existing attributes.
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Backfill: Historical Data",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "src.scripts.backfill_historical",
-            "args": [
-                "--inputs",
-                "TCS(TCS)",
-                "--timeframe",
-                "5m",
-                "--limit",
-                "1500"
-            ],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Python Debugger: FastAPI",
+            "name": "App: FastAPI (uvicorn)",
             "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
             "args": [
-                "main:app",
+                "src.app:app",
                 "--reload"
             ],
-            "jinja": true
-        },
-        {
-            "name": "Backtest: Intraday Service",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "src.scripts.backtest_intraday_service",
-            "justMyCode": true,
-            "args": [
-                "--symbols",
-                "TCS(TCS)",
-                "--start",
-                "2025-03-01",
-                "--end",
-                "2025-03-10",
-                "--limit",
-                "5000",
-                "--report",
-                "intraday_report.json"
-            ],
-            "cwd": "${workspaceFolder}",
+            "jinja": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
         },
         {
-            "name": "Backtest: Scalper Service",
+            "name": "Script: Backfill Historical",
             "type": "debugpy",
             "request": "launch",
-            "module": "src.scripts.backtest_scalper_service",
-            "justMyCode": true,
+            "program": "${workspaceFolder}/src/scripts/backfill_historical.py",
+            "console": "integratedTerminal",
             "args": [
-                "--symbols",
-                "ITC(ITC)",
-                "--start",
-                "2025-03-01",
-                "--end",
-                "2025-03-30",
+                "--inputs",
+                "NIFTY",
+                "--timeframe",
+                "1m",
                 "--limit",
-                "5000",
-                "--report",
-                "scalper_report.json"
+                "500"
             ],
-            "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "Script: Backtest Scalper Day (All Modes)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/scripts/backtest_scalper_day.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--symbol",
+                "NIFTY",
+                "--date",
+                "2025-01-17",
+                "--mode",
+                "all",
+                "--warmup-bars",
+                "80"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Script: Backtest Intraday",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/scripts/backtest_intraday.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--symbol",
+                "${input:intradaySymbol}",
+                "--date",
+                "${input:intradayDate}",
+                "--mode",
+                "${input:intradayMode}"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "intradaySymbol",
+            "type": "promptString",
+            "description": "Enter symbol (e.g. NIFTY)",
+            "default": "NIFTY"
+        },
+        {
+            "id": "intradayDate",
+            "type": "promptString",
+            "description": "Enter date (YYYY-MM-DD)",
+            "default": "2025-01-17"
+        },
+        {
+            "id": "intradayMode",
+            "type": "pickString",
+            "description": "Select mode",
+            "options": [
+                "replay",
+                "performance",
+                "diagnose"
+            ],
+            "default": "replay"
         }
     ]
 }

@@ -1,63 +1,46 @@
 import logging
 from contextlib import asynccontextmanager
-from typing import List, Optional, Union
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-from auth import upstox_auth
-from src.auth.token_store import get_token_expiry
+from fastapi import FastAPI
 from src.config import settings
+
 from src.persistence.db import Database
-from src.services.scalping_service import ScalperService
-from src.services.intraday_service import IntradayService
-from src.services.sentiment_service import SentimentService
-from src.engine.sentiment_filter import SentimentFilter
-from src.api.sentiment_api import router as sentiment_router, init_sentiment_services
-from src.utils.instruments import resolve_instruments
+from src.services.strategies.scalping_service import ScalperService
+from src.services.strategies.intraday_service import IntradayService
+from src.services.maintenance.data_maintenance_service import DataMaintenanceService
+from src.api.data_maintenance_api import init_data_maintenance_service
+from src.api.router import api_router
+from src.api.dependencies.services import service_registry
 from src.utils.logging_config import configure_logging
+from src.auth.token_store import get_token_expiry
+from src.api.state.startup import record_startup_event
 
 logger = logging.getLogger("app")
 
-# Request models
-class StartTradingRequest(BaseModel):
-    service: str = "scalper"  # Default to scalper
-    instruments: Optional[Union[str, List[str]]] = "nifty"
-    
-class StopTradingRequest(BaseModel):
-    service: str = "scalper"  # Default to scalper
-    
-class InstrumentsRequest(BaseModel):
-    instruments: Union[str, List[str]]
-
-# Global service instances
-print("DEBUG: Creating service instances...")
-services = {}
-try:
-    services['scalper'] = ScalperService()
-    print("DEBUG: ScalperService created successfully")
-except Exception as e:
-    print(f"DEBUG: Failed to create ScalperService: {e}")
-    services['scalper'] = None
-
-try:
-    services['intraday'] = IntradayService()
-    print("DEBUG: IntradayService created successfully")
-except Exception as e:
-    print(f"DEBUG: Failed to create IntradayService: {e}")
-    services['intraday'] = None
-
-# Sentiment services
-try:
-    sentiment_svc = SentimentService()
-    sentiment_filt = SentimentFilter(sentiment_svc)
-    services['sentiment'] = sentiment_svc
-    services['sentiment_filter'] = sentiment_filt
-    print("DEBUG: Sentiment services created successfully")
-except Exception as e:
-    print(f"DEBUG: Failed to create sentiment services: {e}")
-    services['sentiment'] = None
-    services['sentiment_filter'] = None
+print("DEBUG: Initializing service registry...")
+def _bootstrap_services():
+    created = {}
+    try:
+        created['scalper'] = ScalperService()
+        print("DEBUG: ScalperService created")
+    except Exception as e:  # pragma: no cover - defensive
+        print(f"DEBUG: Failed to create ScalperService: {e}")
+        created['scalper'] = None
+    try:
+        created['intraday'] = IntradayService()
+        print("DEBUG: IntradayService created")
+    except Exception as e:  # pragma: no cover - defensive
+        print(f"DEBUG: Failed to create IntradayService: {e}")
+        created['intraday'] = None
+    try:
+        created['data_maintenance'] = DataMaintenanceService()
+        print("DEBUG: DataMaintenanceService created")
+    except Exception as e:  # pragma: no cover - defensive
+        print(f"DEBUG: Failed to create DataMaintenanceService: {e}")
+        created['data_maintenance'] = None
+    for name, svc in created.items():
+        service_registry.register(name, svc)
+    return created
 
 
 async def initialize_database():
@@ -82,7 +65,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Mental Trader Web Interface...")
     
     # Check if any services are available
-    if not any(svc for svc in services.values() if svc is not None):
+    created = _bootstrap_services()
+    if not any(svc for svc in created.values() if svc is not None):
         logger.error("No services available, cannot start trading system")
     else:
         # Initialize database
@@ -93,13 +77,49 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Database initialization error: {e}")
         
-        # Initialize services on startup (only scalper for now, intraday can be started manually)
-        # if services.get('scalper'):
-        #     try:
-        #         await services['scalper'].start(["indices"])
-        #         logger.info("Scalper service started successfully")
-        #     except Exception as e:
-        #         logger.error(f"Failed to start scalper service: {e}")
+        # Optional auto-start for scalper service if configured and auth token valid
+        if settings.AUTO_START_SCALPER:
+            token_info = get_token_expiry()
+            scalper = service_registry._services.get('scalper')
+            if scalper and token_info.get('has_token') and not token_info.get('is_expired', True):
+                try:
+                    instruments = settings.AUTO_START_SCALPER_INSTRUMENTS
+                    await scalper.start(instruments)
+                    logger.info("AUTO_START_SCALPER: Scalper service started (%s)", instruments)
+                    record_startup_event("auto_start", "scalper_started", instruments=instruments)
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.error(f"AUTO_START_SCALPER failed: {e}")
+                    record_startup_event("auto_start_error", "scalper_failed", error=str(e))
+            else:
+                logger.warning("AUTO_START_SCALPER enabled but scalper unavailable or token invalid")
+                record_startup_event("auto_start_skip", "scalper_not_started", reason="unavailable_or_token_invalid")
+
+        # Optional auto-start for intraday service
+        if settings.AUTO_START_INTRADAY:
+            token_info = get_token_expiry()
+            intraday = service_registry._services.get('intraday')
+            if intraday and token_info.get('has_token') and not token_info.get('is_expired', True):
+                instruments = settings.AUTO_START_INTRADAY_INSTRUMENTS
+                try:
+                    await intraday.start(instruments)
+                    logger.info("AUTO_START_INTRADAY: Intraday service started (%s)", instruments)
+                    record_startup_event("auto_start", "intraday_started", instruments=instruments)
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.error(f"AUTO_START_INTRADAY failed: {e}")
+                    record_startup_event("auto_start_error", "intraday_failed", error=str(e))
+            else:
+                logger.warning("AUTO_START_INTRADAY enabled but intraday unavailable or token invalid")
+                record_startup_event("auto_start_skip", "intraday_not_started", reason="unavailable_or_token_invalid")
+
+        # Initialize API services
+        dm = service_registry._services.get('data_maintenance')
+        if dm:
+            init_data_maintenance_service(dm)
+            try:
+                await dm.start()
+                logger.info("Data maintenance service started successfully")
+            except Exception as e:  # pragma: no cover - defensive
+                logger.error(f"Failed to start data maintenance service: {e}")
 
     print("LIFESPAN: Startup complete, yielding...")
     yield
@@ -108,12 +128,12 @@ async def lifespan(app: FastAPI):
     print("LIFESPAN: Shutting down...")
     logger.info("Shutting down trading services...")
     
-    for service_name, service_instance in services.items():
+    for service_name, service_instance in service_registry._services.items():  # internal iteration
         if service_instance is not None:
             try:
                 await service_instance.stop()
                 logger.info(f"{service_name.capitalize()} service stopped successfully")
-            except Exception as e:
+            except Exception as e:  # pragma: no cover - defensive
                 logger.error(f"Failed to stop {service_name} service: {e}")
     
     print("LIFESPAN: Shutdown complete")
@@ -122,178 +142,12 @@ async def lifespan(app: FastAPI):
 print("DEBUG: About to create FastAPI app...")
 
 app = FastAPI(
-    title="Mental Trader", 
+    title="Mental Trader",
     description="Algorithmic Trading System",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-app.include_router(upstox_auth.router)
-app.include_router(sentiment_router, prefix="/sentiment", tags=["sentiment"])
+app.include_router(api_router)
 
-print("DEBUG: FastAPI app created successfully")
-
-@app.get("/")
-async def root():
-    """Root endpoint with system info."""
-    token_info = get_token_expiry()
-    
-    return {
-        "name": "Mental Trader",
-        "version": "1.0.0",
-        "description": "Multi-Service Algorithmic Trading System",
-        "services": ["scalper", "intraday"],
-        "auth": {
-            "has_token": token_info.get("has_token", False),
-            "token_expired": token_info.get("is_expired", True),
-            "login_url": "/auth/login" if token_info.get("is_expired", True) else None
-        },
-        "endpoints": {
-            "health": "/health",
-            "status": "/status", 
-            "docs": "/docs",
-            "auth": "/auth/",
-            "control": "/control/"
-        }
-    }
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
-    return {"status": "healthy", "timestamp": "2025-10-15"}
-
-
-@app.get("/status")
-async def get_status():
-    """Get trading system status."""
-    try:
-        status_data = {}
-        for service_name, service_instance in services.items():
-            if service_instance is not None:
-                status_data[service_name] = service_instance.status()
-            else:
-                status_data[service_name] = {"error": f"{service_name} service not initialized"}
-        return status_data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting status: {e}")
-
-
-@app.post("/control/start")
-async def start_trading(request: StartTradingRequest = None):
-    """
-    Start a trading service with specified instruments.
-    
-    Examples:
-    - {"service": "scalper", "instruments": "nifty"} - Start scalper with Nifty stocks
-    - {"service": "intraday", "instruments": "indices"} - Start intraday with indices
-    - {"service": "scalper", "instruments": ["nifty", "indices"]} - Start scalper with both
-    - {"service": "intraday", "instruments": "RELIANCE,TCS"} - Start intraday with specific stocks
-    """
-    try:
-        # Check token status first
-        token_info = get_token_expiry()
-        
-        if not token_info.get("has_token", False):
-            raise HTTPException(
-                status_code=401, 
-                detail="No access token found. Please authenticate first by visiting /auth/login"
-            )
-        
-        if token_info.get("is_expired", True):
-            raise HTTPException(
-                status_code=401, 
-                detail="Access token has expired. Please re-authenticate by visiting /auth/login"
-            )
-        
-        service_name = "scalper"  # Default
-        if request and request.service:
-            service_name = request.service
-            
-        if service_name not in services or services[service_name] is None:
-            raise HTTPException(status_code=400, detail=f"Service '{service_name}' not available")
-        
-        service_instance = services[service_name]
-        
-        # Stop any other running services to prevent WebSocket conflicts
-        for name, svc in services.items():
-            if name != service_name and svc and svc._running:
-                logger.info(f"Stopping {name} service to prevent WebSocket conflicts")
-                try:
-                    await svc.stop()
-                except Exception as e:
-                    logger.warning(f"Error stopping {name} service: {e}")
-        
-        instruments_input = "nifty"  # Default
-        if request and request.instruments:
-            instruments_input = request.instruments
-            
-        await service_instance.start(instruments_input)
-        
-        # Show what instruments were resolved
-        resolved = resolve_instruments(instruments_input)
-        symbols = [item['symbol'] for item in resolved]
-        
-        return {
-            "status": "started", 
-            "service": service_name,
-            "message": f"{service_name.capitalize()} service started successfully",
-            "instruments_input": instruments_input,
-            "resolved_symbols": symbols,
-            "total_instruments": len(resolved)
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        service_name = service_name if 'service_name' in locals() else "unknown"
-        raise HTTPException(status_code=500, detail=f"Failed to start {service_name}: {e}")
-
-@app.post("/instruments/resolve")
-async def resolve_instruments_endpoint(request: InstrumentsRequest):
-    """
-    Resolve instruments to see what symbols and keys will be used.
-    
-    Examples:
-    - {"instruments": "nifty"} - Shows all Nifty stocks
-    - {"instruments": "indices"} - Shows all indices  
-    - {"instruments": ["nifty", "indices"]} - Shows both categories
-    - {"instruments": "RELIANCE,TCS"} - Shows specific stocks
-    """
-    try:
-        resolved = resolve_instruments(request.instruments)
-        return {
-            "input": request.instruments,
-            "resolved_count": len(resolved),
-            "instruments": resolved
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to resolve instruments: {e}")
-
-
-@app.post("/control/stop")
-async def stop_trading(request: StopTradingRequest = None):
-    """Stop a trading service."""
-    try:
-        service_name = "scalper"  # Default
-        if request and request.service:
-            service_name = request.service
-            
-        if service_name not in services or services[service_name] is None:
-            raise HTTPException(status_code=400, detail=f"Service '{service_name}' not available")
-        
-        service_instance = services[service_name]
-        await service_instance.stop()
-        return {"status": "stopped", "service": service_name, "message": f"{service_name.capitalize()} service stopped successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop {service_name}: {e}")
-
-
-@app.get("/config")
-async def get_config():
-    """Get current configuration (safe values only)."""
-    return {
-        "ema_short": settings.EMA_SHORT,
-        "ema_long": settings.EMA_LONG,
-        "warmup_bars": settings.WARMUP_BARS,
-        "app_port": settings.APP_PORT
-    }
+print("DEBUG: FastAPI app created successfully (modular routes)")
