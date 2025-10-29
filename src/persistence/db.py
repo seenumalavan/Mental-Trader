@@ -333,6 +333,48 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to update option trade status: {e}")
 
+    def get_trades_for_month(self, year: int, month: int) -> List[dict]:
+        """Get all trades for a specific month and year."""
+        if not self._connected or not self.engine or trades is None:
+            return []
+        
+        try:
+            from sqlalchemy import select, extract
+            query = select(trades).where(
+                extract('year', trades.c.created_at) == year,
+                extract('month', trades.c.created_at) == month
+            )
+            
+            with self.engine.connect() as conn:
+                result = conn.execute(query)
+                rows = result.fetchall()
+                return [dict(row._mapping) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"Failed to get trades for month {month}/{year}: {e}")
+            return []
+
+    def get_option_trades_for_month(self, year: int, month: int) -> List[dict]:
+        """Get all option trades for a specific month and year."""
+        if not self._connected or not self.engine or option_trades is None:
+            return []
+        
+        try:
+            from sqlalchemy import select, extract
+            query = select(option_trades).where(
+                extract('year', option_trades.c.created_at) == year,
+                extract('month', option_trades.c.created_at) == month
+            )
+            
+            with self.engine.connect() as conn:
+                result = conn.execute(query)
+                rows = result.fetchall()
+                return [dict(row._mapping) for row in rows]
+                
+        except Exception as e:
+            logger.error(f"Failed to get option trades for month {month}/{year}: {e}")
+            return []
+
     async def get_all_symbols(self) -> List[str]:
         """Get all symbols that have data in the database."""
         if not self._connected or not self.engine or candles is None:

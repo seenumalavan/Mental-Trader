@@ -6,6 +6,7 @@ from src.engine.base_strategy import BaseStrategy
 from src.engine.signal_confirmation import confirm_signal
 from src.engine.trend_filter import higher_timeframe_trend_ok
 from src.execution.execution import Signal
+from src.utils.time_utils import get_time_window
 
 logger = logging.getLogger("intraday_strategy")
 
@@ -27,6 +28,17 @@ class IntradayStrategy(BaseStrategy):
             return
         if timeframe != self.primary_tf:
             return
+        
+        # Check time window
+        time_window = get_time_window(getattr(bar, 'ts', ''))
+        if time_window == "midday":
+            logger.debug(f"Intraday {symbol}: Skipping mid-day signal")
+            return
+        
+        if not self.service.can_trade(time_window):
+            logger.debug(f"Intraday {symbol}: Monthly trade limit reached for {time_window}")
+            return
+        
         prev_short = ema_primary.prev_short
         prev_long = ema_primary.prev_long
         curr_short = ema_primary.short_ema
@@ -56,7 +68,7 @@ class IntradayStrategy(BaseStrategy):
             )
             scale = self.get_scale_for_timeframe(self.primary_tf)
             sl = bar.close - (scale * bar.close)
-            tgt = bar.close + (scale * 1.5 * bar.close)
+            tgt = bar.close + (scale * settings.INTRADAY_RR_RATIO * bar.close)
             size = self.get_risk_size(bar.close, sl)
             # Trend and signal confirmation (unified with IntradayStrategy)
             if trend_ok("BUY"):
@@ -66,7 +78,7 @@ class IntradayStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Intraday {symbol}: No recent bars for BUY signal confirmation")
                         return
-                    result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
+                    result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, symbol=symbol, time_window=time_window)
                     if not result["confirmed"]:
                         logger.info(f"Intraday BUY signal rejected for {symbol}: {result['reasons']}")
                         return
@@ -81,6 +93,7 @@ class IntradayStrategy(BaseStrategy):
                 if trade_underlying:
                     logger.debug(f"Intraday {symbol}: Executing underlying BUY order")
                     await self.service.executor.handle_signal(signal)
+                    self.service.increment_trade_count(time_window)
                 await self.service.notifier.notify_signal(signal)
                 # Option signal publication (unified with IntradayStrategy)
                 if high_vol or is_index:
@@ -96,7 +109,7 @@ class IntradayStrategy(BaseStrategy):
             )
             scale = self.get_scale_for_timeframe(self.primary_tf)
             sl = bar.close + (scale * bar.close)
-            tgt = bar.close - (scale * 1.5 * bar.close)
+            tgt = bar.close - (scale * settings.INTRADAY_RR_RATIO * bar.close)
             size = self.get_risk_size(bar.close, sl)
             # Trend and signal confirmation (unified with IntradayStrategy)
             if trend_ok("SELL"):
@@ -106,7 +119,7 @@ class IntradayStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Intraday {symbol}: No recent bars for SELL signal confirmation")
                         return
-                    result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, require_cpr=settings.CONFIRMATION_REQUIRE_CPR)
+                    result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, symbol=symbol, time_window=time_window)
                     if not result["confirmed"]:
                         logger.info(f"Intraday SELL signal rejected for {symbol}: {result['reasons']}")
                         return
@@ -121,6 +134,7 @@ class IntradayStrategy(BaseStrategy):
                 if trade_underlying:
                     logger.debug(f"Intraday {symbol}: Executing underlying SELL order")
                     await self.service.executor.handle_signal(signal)
+                    self.service.increment_trade_count(time_window)
                 await self.service.notifier.notify_signal(signal)
                 # Option signal publication (unified with IntradayStrategy)
                 if high_vol or is_index:

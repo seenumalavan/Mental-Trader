@@ -21,3 +21,17 @@ def parse_timestamp(ltt: str) -> str:
 def now_ist() -> datetime:
     """Return current time in IST as naive datetime (no tzinfo)."""
     return datetime.utcnow().astimezone(IST).replace(tzinfo=None)
+
+def get_time_window(ts: str) -> str:
+    """Determine trading window based on timestamp."""
+    try:
+        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        time_str = dt.strftime("%H:%M")
+        if "09:15" <= time_str <= "10:30":
+            return "morning"
+        elif "14:30" <= time_str <= "15:15":
+            return "afternoon"
+        else:
+            return "midday"
+    except:
+        return "midday"
