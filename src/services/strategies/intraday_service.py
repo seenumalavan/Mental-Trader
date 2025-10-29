@@ -1,11 +1,29 @@
+import asyncio
 import logging
+
+import pandas as pd
+from pytz import timezone
 
 from src.config import settings
 from src.engine.intraday_strategy import IntradayStrategy
 from src.services.strategies.base_service import ServiceBase
 from src.services.risk_manager import RiskManager
+from src.utils.time_utils import IST
 
 logger = logging.getLogger("intraday_service")
+
+def _minutes(tf: str) -> int:
+    if tf.endswith('m'):
+        try:
+            return int(tf[:-1])
+        except ValueError:
+            return 1
+    if tf.endswith('h'):
+        try:
+            return int(tf[:-1]) * 60
+        except ValueError:
+            return 60
+    return 1
 
 class IntradayService(ServiceBase):
     def __init__(self):
@@ -23,6 +41,19 @@ class IntradayService(ServiceBase):
         self.ema_15m = self.ema_confirm
 
     async def start(self, instrument_input=None):
+        # Wait until the next timeframe boundary
+        interval_minutes = _minutes(self.primary_tf)
+        now = pd.Timestamp.now()
+        current_minute = now.minute
+        boundary_minute = ((current_minute // interval_minutes) + 1) * interval_minutes
+        extra_hours = boundary_minute // 60
+        boundary_minute %= 60
+        next_boundary = now.replace(hour=now.hour + extra_hours, minute=boundary_minute, second=0, microsecond=0)
+        delay_seconds = (next_boundary - now).total_seconds()
+        if delay_seconds > 0:
+            logger.info(f"Waiting {delay_seconds:.1f} seconds until next {interval_minutes}-minute boundary")
+            await asyncio.sleep(delay_seconds)
+        
         await super().start(instrument_input)
         logger.info("IntradayService started")
 

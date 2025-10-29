@@ -68,11 +68,12 @@ class CaptureNotifier:
         self.emitted.append(signal)
 
 class Harness:
-    def __init__(self, symbol: str, instrument_key: str, primary_tf: str, confirm_tf: str):
+    def __init__(self, symbol: str, instrument_key: str, primary_tf: str, confirm_tf: str, candles: List[Dict] = None):
         self.symbol = symbol
         self.instrument_key = instrument_key
         self.primary_tf = primary_tf
         self.confirm_tf = confirm_tf
+        self.candles = candles or []
         self.executor = CaptureExecutor()
         self.notifier = CaptureNotifier()
         self.option_signals: List = []
@@ -105,7 +106,60 @@ class Harness:
         self.ema_confirm = EMAState(instrument_key, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG) if confirm_tf != primary_tf else None
         self.strategy = IntradayStrategy(self, primary_tf, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
     async def _confirmation_ctx(self, symbol: str, timeframe: str):
-        return [], {"prev_high": None, "prev_low": None, "prev_close": None}
+        """Provide context for signal confirmation: recent bars and previous day reference."""
+        try:
+            import pandas as pd
+
+            # Get recent bars for RSI/price action analysis
+            recent_bars = []
+            candles = self.candles[-settings.CONFIRMATION_RECENT_BARS:] if self.candles else []
+            if candles:
+                recent_bars = [{
+                    'close': c['close'],
+                    'open': c['open'],
+                    'high': c['high'],
+                    'low': c['low'],
+                    'volume': c['volume']
+                } for c in candles]
+            
+            # Get previous day OHLC for CPR calculation by resampling minute data to daily
+            daily_ref = {"prev_high": None, "prev_low": None, "prev_close": None}
+            # Use the same candles loaded for RSI, resample to daily
+            # Calculate minimum candles needed: ~375 minutes per trading day * 2 days
+            if timeframe.endswith('m'):
+                timeframe_minutes = int(timeframe.rstrip('m'))
+            elif timeframe.endswith('h'):
+                timeframe_minutes = int(timeframe.rstrip('h')) * 60
+            else:
+                timeframe_minutes = 1  # fallback
+            min_candles_needed = (375 // timeframe_minutes) * 2  # At least 2 trading days worth
+            if self.candles and len(self.candles) > min_candles_needed:
+                df = pd.DataFrame(self.candles)
+                df['parsed_ts'] = pd.to_datetime(df['ts'], errors='coerce', utc=False)
+                df = df.dropna(subset=['parsed_ts'])
+                df = df.set_index('parsed_ts').sort_index()
+                # Resample to daily
+                daily_agg = df.resample('D').agg({
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum'
+                }).dropna(subset=['open', 'close'])
+                daily_list = daily_agg.reset_index().to_dict('records')
+                if len(daily_list) >= 2:
+                    # Second to last is previous day
+                    prev_day = daily_list[-2]
+                    daily_ref = {
+                        "prev_high": prev_day['high'],
+                        "prev_low": prev_day['low'],
+                        "prev_close": prev_day['close']
+                    }
+            
+            return recent_bars, daily_ref
+        except Exception as e:
+            print(f"Failed to get confirmation context for {symbol}: {e}")
+            return [], {"prev_high": None, "prev_low": None, "prev_close": None}
 
 # -------- Args ---------
 
@@ -349,7 +403,7 @@ async def main_async():
                 write_csv(args.output, DIAGNOSE_HEADERS, rows)
         return
 
-    harness = Harness(args.symbol, instrument_key, args.timeframe, args.confirm_tf)
+    harness = Harness(args.symbol, instrument_key, args.timeframe, args.confirm_tf, warm + day_rows)
     use_filters = (args.disable_trend and args.disable_confirmation)
     signals = await replay(args.symbol, harness, warm, day_rows, use_filters=use_filters)
 
