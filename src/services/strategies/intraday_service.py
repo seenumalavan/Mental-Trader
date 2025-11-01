@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 
 import pandas as pd
 from pytz import timezone
@@ -8,7 +9,7 @@ from src.config import settings
 from src.engine.intraday_strategy import IntradayStrategy
 from src.services.strategies.base_service import ServiceBase
 from src.services.risk_manager import RiskManager
-from src.utils.time_utils import IST
+from src.utils.time_utils import get_time_window, IST
 
 logger = logging.getLogger("intraday_service")
 
@@ -68,6 +69,72 @@ class IntradayService(ServiceBase):
         s = super().status()
         s['symbols'] = s.get('symbols_primary', [])
         return s
+
+    def can_trade(self, time_window: str) -> bool:
+        """Check if we can trade based on monthly limits by counting actual trades from DB."""
+        if not self.db or not self.db._connected:
+            logger.warning("Database not available, allowing trade")
+            return True
+            
+        try:
+            # Get current month and year
+            now = datetime.now()
+            current_month = now.month
+            current_year = now.year
+            
+            # Query both regular trades and option trades for current month
+            regular_trades = self.db.get_trades_for_month(current_year, current_month)
+            option_trades = self.db.get_option_trades_for_month(current_year, current_month)
+            
+            # Count trades by time window
+            window_count = 0
+            
+            # Count regular trades
+            for trade in regular_trades:
+                trade_ts = trade.get('created_at')
+                if trade_ts:
+                    # Convert to string format for get_time_window
+                    if isinstance(trade_ts, datetime):
+                        ts_str = trade_ts.isoformat()
+                    else:
+                        ts_str = str(trade_ts)
+                    
+                    trade_window = get_time_window(ts_str)
+                    if trade_window == time_window:
+                        window_count += 1
+            
+            # Count option trades
+            for trade in option_trades:
+                trade_ts = trade.get('created_at')
+                if trade_ts:
+                    # Convert to string format for get_time_window
+                    if isinstance(trade_ts, datetime):
+                        ts_str = trade_ts.isoformat()
+                    else:
+                        ts_str = str(trade_ts)
+                    
+                    trade_window = get_time_window(ts_str)
+                    if trade_window == time_window:
+                        window_count += 1
+            
+            # Check limit
+            limit_key = f"INTRADAY_MAX_TRADES_{time_window.upper()}_MONTHLY"
+            limit = getattr(settings, limit_key, 0)
+            
+            if window_count >= limit:
+                logger.info(f"Monthly trade limit reached for {time_window}: {window_count}/{limit}")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error checking trade limits: {e}")
+            # Allow trade on error to avoid blocking trading
+            return True
+
+    def increment_trade_count(self, time_window: str):
+        """No-op: trade count is calculated from DB, not incremented."""
+        pass
 
     async def _confirmation_ctx(self, symbol: str, timeframe: str):
         """Provide context for signal confirmation: recent bars and previous day reference."""

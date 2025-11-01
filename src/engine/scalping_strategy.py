@@ -64,7 +64,7 @@ class ScalpStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Scalper {symbol}: No recent bars for BUY signal confirmation")
                         return
-                    result = confirm_signal("BUY", ema_state, recent_bars, daily_ref, require_cpr=getattr(settings, "CONFIRMATION_REQUIRE_CPR", False))
+                    result = confirm_signal("BUY", ema_state, recent_bars, daily_ref, symbol=symbol, require_cpr=getattr(settings, "CONFIRMATION_REQUIRE_CPR", False))
                     if not result["confirmed"]:
                         logger.info(f"Scalper BUY signal rejected for {symbol}: {result['reasons']}")
                         return
@@ -103,7 +103,7 @@ class ScalpStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Scalper {symbol}: No recent bars for SELL signal confirmation")
                         return
-                    result = confirm_signal("SELL", ema_state, recent_bars, daily_ref, require_cpr=getattr(settings, "CONFIRMATION_REQUIRE_CPR", False))
+                    result = confirm_signal("SELL", ema_state, recent_bars, daily_ref, symbol=symbol, require_cpr=getattr(settings, "CONFIRMATION_REQUIRE_CPR", False))
                     if not result["confirmed"]:
                         logger.info(f"Scalper SELL signal rejected for {symbol}: {result['reasons']}")
                         return

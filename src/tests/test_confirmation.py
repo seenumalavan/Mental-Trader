@@ -12,7 +12,7 @@ def test_confirm_long_basic():
         price += 0.5
         recent.append({"open": price-0.3, "high": price+0.2, "low": price-0.4, "close": price, "volume": 100})
     daily_ref = {"prev_high": 120, "prev_low": 95, "prev_close": 110}
-    result = confirm_signal(SignalType.LONG, ema, recent, daily_ref)
+    result = confirm_signal(SignalType.LONG, ema, recent, daily_ref, symbol="NIFTY")
     assert "Insufficient" not in " ".join(result["reasons"])
 
 def test_reject_long_rsi_too_high():
@@ -24,5 +24,5 @@ def test_reject_long_rsi_too_high():
         price += 5.0
         recent.append({"open": price-4.5, "high": price+1.0, "low": price-4.6, "close": price, "volume": 100})
     daily_ref = {"prev_high": 60, "prev_low": 30, "prev_close": 55}
-    result = confirm_signal(SignalType.LONG, ema, recent, daily_ref)
+    result = confirm_signal(SignalType.LONG, ema, recent, daily_ref, symbol="NIFTY")
     assert not result["confirmed"]
