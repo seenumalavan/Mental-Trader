@@ -7,7 +7,7 @@ from src.engine.ema import EMAState
 from src.engine.price_action import (analyze_candle, is_bearish_engulf,
                                      is_bullish_engulf, is_hammer, is_shooting_star,
                                      is_three_green_candles, is_three_red_candles)
-from src.engine.rsi import compute_rsi
+from src.engine.rsi import compute_rsi_series
 
 logger = logging.getLogger("signal_confirm")
 
@@ -17,15 +17,15 @@ class SignalType:
 
 def is_virgin_cpr_break(side: str, recent_bars: List[Dict], cpr: Dict) -> bool:
     """Check if CPR level break is 'virgin' (level untouched in recent bars)"""
-    if not cpr or len(recent_bars) < 10:
+    if not cpr or len(recent_bars) < 3:
         return False
     
     if side == SignalType.LONG:
         tc_level = cpr["TC"]
         # Check if TC was touched in last 10 bars (excluding current bar)
         touched_recently = any(
-            bar["high"] >= tc_level >= bar["low"] 
-            for bar in recent_bars[-11:-1]  # Last 10 bars before current
+            bar["high"] >= tc_level >= bar["low"]
+            for bar in recent_bars[-4:-1]  # Last 4 bars before current
         )
         current_break = recent_bars[-1]["close"] > tc_level
         return current_break and not touched_recently
@@ -33,17 +33,34 @@ def is_virgin_cpr_break(side: str, recent_bars: List[Dict], cpr: Dict) -> bool:
         bc_level = cpr["BC"]
         # Check if BC was touched in last 10 bars (excluding current bar)
         touched_recently = any(
-            bar["high"] >= bc_level >= bar["low"] 
-            for bar in recent_bars[-11:-1]  # Last 10 bars before current
+            bar["high"] >= bc_level >= bar["low"]
+            for bar in recent_bars[-4:-1]  # Last 4 bars before current
         )
         current_break = recent_bars[-1]["close"] < bc_level
         return current_break and not touched_recently
 
-def count_active_filters(side: str, scores: Dict, recent_bars: List[Dict], symbol: str = "") -> int:
+def count_active_filters(side: str, scores: Dict, recent_bars: List[Dict], symbol: str = "", 
+                        ema_state: EMAState = None, pa_confirmed: bool = False, 
+                        virgin_cpr_break: bool = False) -> int:
     """Count how many technical filters are currently active/passing"""
     count = 0
     
-    # RSI slope (always included if calculated)
+    # EMA Crossover (base signal - always counted if function is called)
+    if ema_state and ema_state.short_ema is not None and ema_state.long_ema is not None:
+        if side == SignalType.LONG and ema_state.short_ema > ema_state.long_ema:
+            count += 1
+        elif side == SignalType.SHORT and ema_state.short_ema < ema_state.long_ema:
+            count += 1
+    
+    # Price Action (always counted if PA patterns detected)
+    if pa_confirmed:
+        count += 1
+    
+    # Virgin CPR Break (morning only - counted if virgin break occurred)
+    if virgin_cpr_break:
+        count += 1
+    
+    # RSI slope (technical filter)
     if "rsi_slope" in scores:
         if side == SignalType.LONG and scores["rsi_slope"] > 0:
             count += 1
@@ -171,7 +188,7 @@ def confirm_signal(
         reasons.append("Insufficient bars for price action analysis")
 
     # RSI(7) Slope Check
-    rsi_values = compute_rsi(closes, period=7) if len(closes) >= 7 else None
+    rsi_values = compute_rsi_series(closes, period=7) if len(closes) >= 14 else None  # Need more data for series
     if rsi_values and len(rsi_values) >= 2:
         current_rsi = rsi_values[-1]
         prev_rsi = rsi_values[-2]
@@ -189,77 +206,82 @@ def confirm_signal(
         confirmed = False
         reasons.append("Insufficient data for RSI(7) slope")
 
-    # Volume Check (adaptive for futures vs options)
-    is_option = "CE" in symbol.upper() or "PE" in symbol.upper()
+    # # Volume Check (adaptive for futures vs options)
+    # is_option = "CE" in symbol.upper() or "PE" in symbol.upper()
     
-    if len(recent_bars) >= 10:  # Need enough bars for average
-        volumes = [b.get("volume", 0) for b in recent_bars[-10:]]  # Last 10 bars
-        avg_volume = sum(volumes) / len(volumes)
-        current_volume = recent_bars[-1].get("volume", 0)
+    # if len(recent_bars) >= 10:  # Need enough bars for average
+    #     volumes = [b.get("volume", 0) for b in recent_bars[-10:]]  # Last 10 bars
+    #     avg_volume = sum(volumes) / len(volumes)
+    #     current_volume = recent_bars[-1].get("volume", 0)
         
-        if is_option and current_volume == 0:
-            # Skip volume check for options with zero volume
-            scores["volume_ratio"] = 0.0
-            reasons.append("Volume check skipped for options (zero volume)")
-        else:
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-            scores["volume_ratio"] = volume_ratio
+    #     if is_option and current_volume == 0:
+    #         # Skip volume check for options with zero volume
+    #         scores["volume_ratio"] = 0.0
+    #         reasons.append("Volume check skipped for options (zero volume)")
+    #     else:
+    #         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
+    #         scores["volume_ratio"] = volume_ratio
             
-            # Different thresholds for futures vs options
-            threshold = 1.2 if is_option else 1.7
+    #         # Different thresholds for futures vs options
+    #         threshold = 1.2 if is_option else 1.7
             
-            if volume_ratio < threshold:
-                confirmed = False
-                reasons.append(f"Volume below {threshold}x average: {volume_ratio:.2f}x ({'options' if is_option else 'futures'})")
-    else:
-        confirmed = False
-        reasons.append("Insufficient bars for volume analysis")
+    #         if volume_ratio < threshold:
+    #             confirmed = False
+    #             reasons.append(f"Volume below {threshold}x average: {volume_ratio:.2f}x ({'options' if is_option else 'futures'})")
+    # else:
+    #     confirmed = False
+    #     reasons.append("Insufficient bars for volume analysis")
 
-    # VWAP Check
-    if len(recent_bars) >= 5:  # Need some bars for VWAP
-        # Calculate VWAP for recent bars
-        price_volume_sum = 0
-        volume_sum = 0
-        valid_bars = 0
+    # # VWAP Check
+    # if len(recent_bars) >= 5:  # Need some bars for VWAP
+    #     # Calculate VWAP for recent bars
+    #     price_volume_sum = 0
+    #     volume_sum = 0
+    #     valid_bars = 0
         
-        for bar in recent_bars[-20:]:  # Use last 20 bars for VWAP
-            vol = bar.get("volume", 0)
-            if vol > 0:  # Only include bars with volume
-                typical_price = (bar["high"] + bar["low"] + bar["close"]) / 3
-                price_volume_sum += typical_price * vol
-                volume_sum += vol
-                valid_bars += 1
+    #     for bar in recent_bars[-20:]:  # Use last 20 bars for VWAP
+    #         vol = bar.get("volume", 0)
+    #         if vol > 0:  # Only include bars with volume
+    #             typical_price = (bar["high"] + bar["low"] + bar["close"]) / 3
+    #             price_volume_sum += typical_price * vol
+    #             volume_sum += vol
+    #             valid_bars += 1
         
-        if valid_bars >= 5:  # Need at least 5 bars with volume
-            vwap = price_volume_sum / volume_sum if volume_sum > 0 else None
-            if vwap is not None:
-                scores["vwap"] = vwap
-                current_price = recent_bars[-1]["close"]
+    #     if valid_bars >= 5:  # Need at least 5 bars with volume
+    #         vwap = price_volume_sum / volume_sum if volume_sum > 0 else None
+    #         if vwap is not None:
+    #             scores["vwap"] = vwap
+    #             current_price = recent_bars[-1]["close"]
                 
-                if side == SignalType.LONG and current_price <= vwap:
-                    confirmed = False
-                    reasons.append(f"Price below VWAP for LONG: {current_price:.2f} <= {vwap:.2f}")
-                elif side == SignalType.SHORT and current_price >= vwap:
-                    confirmed = False
-                    reasons.append(f"Price above VWAP for SHORT: {current_price:.2f} >= {vwap:.2f}")
-            else:
-                if not is_option:
-                    confirmed = False
-                    reasons.append("Unable to calculate VWAP")
-                else:
-                    reasons.append("VWAP skipped for options (insufficient volume data)")
-        else:
-            if not is_option:
-                confirmed = False
-                reasons.append("Insufficient bars with volume for VWAP")
-            else:
-                reasons.append("VWAP skipped for options (insufficient volume data)")
-    else:
-        confirmed = False
-        reasons.append("Insufficient bars for VWAP analysis")
+    #             if side == SignalType.LONG and current_price <= vwap:
+    #                 confirmed = False
+    #                 reasons.append(f"Price below VWAP for LONG: {current_price:.2f} <= {vwap:.2f}")
+    #             elif side == SignalType.SHORT and current_price >= vwap:
+    #                 confirmed = False
+    #                 reasons.append(f"Price above VWAP for SHORT: {current_price:.2f} >= {vwap:.2f}")
+    #         else:
+    #             if not is_option:
+    #                 confirmed = False
+    #                 reasons.append("Unable to calculate VWAP")
+    #             else:
+    #                 reasons.append("VWAP skipped for options (insufficient volume data)")
+    #     else:
+    #         if not is_option:
+    #             confirmed = False
+    #             reasons.append("Insufficient bars with volume for VWAP")
+    #         else:
+    #             reasons.append("VWAP skipped for options (insufficient volume data)")
+    # else:
+    #     confirmed = False
+    #     reasons.append("Insufficient bars for VWAP analysis")
+
+    # Determine if virgin CPR break occurred (for morning)
+    virgin_cpr_confirmed = False
+    if time_window == "morning" and cpr:
+        virgin_cpr_confirmed = is_virgin_cpr_break(side, recent_bars, cpr)
 
     # Adaptive Filter Counting (Pine Script style)
-    active_filters = count_active_filters(side, scores, recent_bars, symbol)
+    active_filters = count_active_filters(side, scores, recent_bars, symbol, ema_state, pa_confirmed, virgin_cpr_confirmed)
     required_filters = get_required_filters(time_window)
     
     if active_filters < required_filters:

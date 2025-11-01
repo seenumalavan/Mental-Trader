@@ -74,6 +74,11 @@ class Harness:
         self.primary_tf = primary_tf
         self.confirm_tf = confirm_tf
         self.candles = candles or []
+        
+        # Load symbol to instrument key mapping
+        from src.utils.instruments import get_symbol_to_key_mapping
+        self.symbol_to_key = get_symbol_to_key_mapping()
+        
         self.executor = CaptureExecutor()
         self.notifier = CaptureNotifier()
         self.option_signals: List = []
@@ -105,13 +110,16 @@ class Harness:
         self.ema_primary = EMAState(instrument_key, primary_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
         self.ema_confirm = EMAState(instrument_key, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG) if confirm_tf != primary_tf else None
         self.strategy = IntradayStrategy(self, primary_tf, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
+    
+    def can_trade(self, time_window: str) -> bool:
+        """For backtesting, always allow trades (no monthly limits)."""
+        return True
     async def _confirmation_ctx(self, symbol: str, timeframe: str):
-        """Provide context for signal confirmation: recent bars and previous day reference."""
+        """Provide context for signal confirmation: recent bars and previous day reference using API daily data."""
         try:
-            import pandas as pd
-
             # Get recent bars for RSI/price action analysis
             recent_bars = []
+            instrument_key = self.symbol_to_key.get(symbol, symbol)
             candles = self.candles[-settings.CONFIRMATION_RECENT_BARS:] if self.candles else []
             if candles:
                 recent_bars = [{
@@ -122,39 +130,37 @@ class Harness:
                     'volume': c['volume']
                 } for c in candles]
             
-            # Get previous day OHLC for CPR calculation by resampling minute data to daily
+            # Get previous day OHLC using API for daily timeframe (accurate and reliable)
             daily_ref = {"prev_high": None, "prev_low": None, "prev_close": None}
-            # Use the same candles loaded for RSI, resample to daily
-            # Calculate minimum candles needed: ~375 minutes per trading day * 2 days
-            if timeframe.endswith('m'):
-                timeframe_minutes = int(timeframe.rstrip('m'))
-            elif timeframe.endswith('h'):
-                timeframe_minutes = int(timeframe.rstrip('h')) * 60
-            else:
-                timeframe_minutes = 1  # fallback
-            min_candles_needed = (375 // timeframe_minutes) * 2  # At least 2 trading days worth
-            if self.candles and len(self.candles) > min_candles_needed:
-                df = pd.DataFrame(self.candles)
-                df['parsed_ts'] = pd.to_datetime(df['ts'], errors='coerce', utc=False)
-                df = df.dropna(subset=['parsed_ts'])
-                df = df.set_index('parsed_ts').sort_index()
-                # Resample to daily
-                daily_agg = df.resample('D').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna(subset=['open', 'close'])
-                daily_list = daily_agg.reset_index().to_dict('records')
-                if len(daily_list) >= 2:
-                    # Second to last is previous day
-                    prev_day = daily_list[-2]
+            
+            try:
+                # Fetch daily historical data directly from API
+                from src.auth.token_store import get_token
+                from src.providers.broker_rest import BrokerRest
+                
+                access_token = get_token()
+                api_key = settings.UPSTOX_API_KEY
+                api_secret = settings.UPSTOX_API_SECRET
+                rest = BrokerRest(api_key, api_secret, access_token=access_token)
+                
+                # Get daily data for the past few days
+                daily_candles = await rest.fetch_historical(instrument_key, timeframe="1d", limit=5)
+                
+                if len(daily_candles) >= 2:
+                    # Second to last is previous day (last might be partial current day)
+                    prev_day = daily_candles[0]
                     daily_ref = {
                         "prev_high": prev_day['high'],
                         "prev_low": prev_day['low'],
                         "prev_close": prev_day['close']
                     }
+                    print(f"DEBUG: Using API daily data for {symbol}: prev_close={prev_day['close']:.2f}")
+                else:
+                    print(f"WARNING: Insufficient daily data from API for {symbol}")
+                    
+            except Exception as e:
+                print(f"ERROR: Failed to fetch daily data from API for {symbol}: {e}")
+                # No fallback - if API fails, daily_ref remains None
             
             return recent_bars, daily_ref
         except Exception as e:
@@ -172,7 +178,7 @@ def parse_args():
     p.add_argument('--instrument-key', dest='instrument_key')
     p.add_argument('--warmup-bars', type=int, default=500)
     p.add_argument('--mode', choices=['replay','performance','diagnose'], default='replay')
-    p.add_argument('--disable-trend', action='store_true')
+    p.add_argument('--disable-trend', action='store_false')
     p.add_argument('--disable-confirmation', action='store_true')
     # Diagnose / advanced parameters
     p.add_argument('--threshold-pct', type=float, default=0.0, help='Threshold pct for strict crossover in diagnose mode')
@@ -191,7 +197,7 @@ async def diagnose_crossovers(symbol: str, instrument_key: str, timeframe: str, 
     if disable_trend:
         settings.INTRADAY_ENABLE_TREND_CONFIRMATION = False
     if disable_confirmation:
-        settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION = False
+        settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION = True
     ema = EMAState(symbol, timeframe, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
     for b in warm:
         ema.update_with_close(b['close'])
@@ -256,13 +262,13 @@ async def diagnose_crossovers(symbol: str, instrument_key: str, timeframe: str, 
 
 # -------- Replay ---------
 
-async def replay(symbol: str, harness: Harness, warm: List[Dict], day_rows: List[Dict], use_filters: bool) -> List[Dict]:
+async def replay(symbol: str, harness: Harness, warm: List[Dict], day_rows: List[Dict], disable_trend: bool, disable_confirmation: bool) -> List[Dict]:
     for r in warm:
         harness.ema_primary.update_with_close(r['close'])
         if harness.ema_confirm:
             harness.ema_confirm.update_with_close(r['close'])
-    settings.INTRADAY_ENABLE_TREND_CONFIRMATION = use_filters
-    settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION = use_filters
+    settings.INTRADAY_ENABLE_TREND_CONFIRMATION = not disable_trend
+    settings.INTRADAY_ENABLE_SIGNAL_CONFIRMATION = not disable_confirmation
     events: List[Dict] = []
     for r in day_rows:
         harness.ema_primary.update_with_close(r['close'])
@@ -404,8 +410,7 @@ async def main_async():
         return
 
     harness = Harness(args.symbol, instrument_key, args.timeframe, args.confirm_tf, warm + day_rows)
-    use_filters = (args.disable_trend and args.disable_confirmation)
-    signals = await replay(args.symbol, harness, warm, day_rows, use_filters=use_filters)
+    signals = await replay(args.symbol, harness, warm, day_rows, args.disable_trend, args.disable_confirmation)
 
     if args.mode == 'replay':
         if signals:

@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List
+from unittest import result
 
 import pandas as pd
 
@@ -62,6 +63,7 @@ class ServiceBase:
         self.strategy = None
         self._running = False
         self.options_manager = None  # Will hold OptionsManager if enabled
+        self.day_candles = []
 
     async def start(self, instrument_input=None):
         if self._running:
@@ -76,6 +78,13 @@ class ServiceBase:
         for inst in instruments:
             symbol = inst['symbol']
             key = inst['instrument_key']
+
+            # load day candles for confirmation context
+            result = await self.load_day_candles(symbol, key)
+            if result is not None:
+                self.day_candles[symbol] = result
+
+            # Regular warmup
             self.symbol_to_key[symbol] = key
             candles_primary = await self.db.load_candles(symbol, key, self.primary_tf, limit=self.warmup_bars)
             if not candles_primary:
@@ -245,4 +254,18 @@ class ServiceBase:
     def build_strategy(self):
         raise NotImplementedError
 
+    async def load_day_candles(self, symbol: str, instrument_key: str, timeframe: str = "1d") -> List[Dict[str, Any]]:
+        """Load daily candles from DB for the given symbol and timeframe."""
+        day_candles = await self.rest.fetch_historical(instrument_key, timeframe, limit=5)
+        if day_candles:
+            for idx, ic in enumerate(day_candles):
+                day_candles[idx] = {
+                    'symbol': symbol,
+                    'instrument_key': instrument_key,
+                    'timeframe': timeframe,
+                    **ic
+                }
+        return day_candles
     # Normalization helper removed per request: keep raw ts values intact.
+
+

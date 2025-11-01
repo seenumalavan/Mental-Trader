@@ -56,7 +56,6 @@ class Settings(BaseSettings):
 
     # Confirmation pipeline configuration
     CONFIRMATION_RECENT_BARS: int = Field(750, env="CONFIRMATION_RECENT_BARS")
-    CONFIRMATION_REQUIRE_CPR: bool = Field(False, env="CONFIRMATION_REQUIRE_CPR")
 
     # Option Trading (Shared Options Manager)
     OPTION_ENABLE: bool = Field(True, env="OPTION_ENABLE")

@@ -156,39 +156,16 @@ class IntradayService(ServiceBase):
             
             # Get previous day OHLC for CPR calculation by resampling minute data to daily
             daily_ref = {"prev_high": None, "prev_low": None, "prev_close": None}
-            # Use the same candles loaded for RSI, resample to daily
-            # Calculate minimum candles needed: ~375 minutes per trading day * 2 days
-            if timeframe.endswith('m'):
-                timeframe_minutes = int(timeframe.rstrip('m'))
-            elif timeframe.endswith('h'):
-                timeframe_minutes = int(timeframe.rstrip('h')) * 60
-            else:
-                timeframe_minutes = 1  # fallback
-            min_candles_needed = (375 // timeframe_minutes) * 2  # At least 2 trading days worth
-            logger.debug(f"Timeframe {timeframe}: {timeframe_minutes}min, need {min_candles_needed} candles for 2 days")
-            if candles and len(candles) > min_candles_needed:
-                df = pd.DataFrame(candles)
-                df['parsed_ts'] = pd.to_datetime(df['ts'], errors='coerce', utc=False)
-                df = df.dropna(subset=['parsed_ts'])
-                df = df.set_index('parsed_ts').sort_index()
-                # Resample to daily
-                daily_agg = df.resample('D').agg({
-                    'open': 'first',
-                    'high': 'max',
-                    'low': 'min',
-                    'close': 'last',
-                    'volume': 'sum'
-                }).dropna(subset=['open', 'close'])
-                daily_list = daily_agg.reset_index().to_dict('records')
-                if len(daily_list) >= 2:
-                    # Second to last is previous day
-                    prev_day = daily_list[-2]
+            day_candles = self.day_candles.get(symbol, [])
+            if day_candles:
+                df_day = pd.DataFrame(day_candles)
+                if not df_day.empty:
+                    prev_day = df_day.iloc[-1]  # last row
                     daily_ref = {
                         "prev_high": prev_day['high'],
                         "prev_low": prev_day['low'],
                         "prev_close": prev_day['close']
                     }
-            
             return recent_bars, daily_ref
         except Exception as e:
             logger.warning(f"Failed to get confirmation context for {symbol}: {e}")
