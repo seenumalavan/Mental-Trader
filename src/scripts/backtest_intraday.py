@@ -111,9 +111,7 @@ class Harness:
         self.ema_confirm = EMAState(instrument_key, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG) if confirm_tf != primary_tf else None
         self.strategy = IntradayStrategy(self, primary_tf, confirm_tf, settings.INTRADAY_EMA_SHORT, settings.INTRADAY_EMA_LONG)
     
-    def can_trade(self, time_window: str) -> bool:
-        """For backtesting, always allow trades (no monthly limits)."""
-        return True
+    # Removed time-window gating; all trades allowed.
     async def _confirmation_ctx(self, symbol: str, timeframe: str):
         """Provide context for signal confirmation: recent bars and previous day reference using API daily data."""
         try:

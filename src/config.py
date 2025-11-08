@@ -67,6 +67,18 @@ class Settings(BaseSettings):
     OPTION_DEBOUNCE_SEC: int = Field(30, env="OPTION_DEBOUNCE_SEC")
     OPTION_DEBOUNCE_INTRADAY_SEC: int = Field(60, env="OPTION_DEBOUNCE_INTRADAY_SEC")
     OPTION_COOLDOWN_SEC: int = Field(300, env="OPTION_COOLDOWN_SEC")
+
+    # Opening Range Options Breakout Configuration
+    OPENING_RANGE_ENABLED: bool = Field(True, env="OPENING_RANGE_ENABLED")
+    OPENING_RANGE_TIMEFRAME: str = Field("5m", env="OPENING_RANGE_TIMEFRAME")
+    OPENING_RANGE_RANGE_MINUTES: int = Field(15, env="OPENING_RANGE_RANGE_MINUTES")  # length of opening range collection window
+    OPENING_RANGE_LAST_TRADE_TIME: str = Field("09:45", env="OPENING_RANGE_LAST_TRADE_TIME")  # HH:MM local (IST) cutoff for breakout trades
+    OPENING_RANGE_REQUIRE_CPR: bool = Field(True, env="OPENING_RANGE_REQUIRE_CPR")
+    OPENING_RANGE_REQUIRE_PRICE_ACTION: bool = Field(True, env="OPENING_RANGE_REQUIRE_PRICE_ACTION")
+    OPENING_RANGE_REQUIRE_RSI_SLOPE: bool = Field(False, env="OPENING_RANGE_REQUIRE_RSI_SLOPE")
+    OPENING_RANGE_MIN_OI_CHANGE_PCT: float = Field(8.0, env="OPENING_RANGE_MIN_OI_CHANGE_PCT")  # % increase in relevant side OI (calls for upside, puts for downside)
+    OPENING_RANGE_DEBOUNCE_SEC: int = Field(5, env="OPENING_RANGE_DEBOUNCE_SEC")  # small debounce to avoid duplicate detection same bar
+    OPENING_RANGE_MAX_SIGNALS_PER_DAY: int = Field(1, env="OPENING_RANGE_MAX_SIGNALS_PER_DAY")
     
     # Sentiment Analysis Configuration
     SENTIMENT_ENABLE: bool = Field(True, env="SENTIMENT_ENABLE")

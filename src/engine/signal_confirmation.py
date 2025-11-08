@@ -85,22 +85,16 @@ def count_active_filters(side: str, scores: Dict, recent_bars: List[Dict], symbo
     
     return count
 
-def get_required_filters(time_window: str) -> int:
-    """Get minimum required active filters based on time window"""
-    if time_window == "morning":
-        return 4  # EMA + PA + CPR + minimum 1 technical filter
-    elif time_window == "afternoon":
-        return 3  # EMA + PA + minimum 1 technical filter (CPR optional)
-    else:
-        return 2  # Minimum viable for other times
+def get_required_filters() -> int:
+    """Return static minimum required active filters (time-window removed)."""
+    return 0  # Disable active filter threshold gating
 
 def confirm_signal(
     side: str,
     ema_state: EMAState,
     recent_bars: List[Dict],
     daily_ref: Dict,  # expects prev_high/prev_low/prev_close
-    symbol: str = "",  # Symbol to detect options vs futures
-    time_window: str = "morning"  # "morning", "afternoon", "midday"
+    symbol: str = ""  # Symbol to detect options vs futures
 ) -> Dict:
     """Confirm a raw EMA signal using ADAPTIVE CPR SNIPER logic (75%+ Win Rate).
 
@@ -128,33 +122,22 @@ def confirm_signal(
     scores: Dict[str, float] = {}
     confirmed = True
 
-    # Skip for midday
-    if time_window == "midday":
-        return {"confirmed": False, "reasons": ["Mid-day skip"], "scores": scores, "rsi": None, "cpr": None}
-
     # Get closes for potential use
     closes = [b["close"] for b in recent_bars] if recent_bars else []
 
-    # Morning: EMA + PA + CPR (Virgin CPR required)
-    if time_window == "morning":
-        # CPR check with virgin break requirement
-        cpr = None
-        have_daily = all(k in daily_ref and daily_ref[k] is not None for k in ("prev_high", "prev_low", "prev_close"))
-        if have_daily:
-            cpr = compute_cpr(daily_ref["prev_high"], daily_ref["prev_low"], daily_ref["prev_close"])
-            scores.update({"P": cpr["P"], "BC": cpr["BC"], "TC": cpr["TC"]})
-            
-            # Check for virgin CPR break
-            virgin_break = is_virgin_cpr_break(side, recent_bars, cpr)
-            if not virgin_break:
-                confirmed = False
-                reasons.append("CPR break not virgin (level touched recently)")
-        else:
-            reasons.append("Missing previous day data for CPR")
-            confirmed = False
-
-    # Afternoon: EMA + PA only (no CPR, no RSI)
-    # Mid-day: skipped above
+    # CPR check (always performed if daily ref present; virgin break optional)
+    cpr = None
+    have_daily = all(k in daily_ref and daily_ref[k] is not None for k in ("prev_high", "prev_low", "prev_close"))
+    if have_daily:
+        cpr = compute_cpr(daily_ref["prev_high"], daily_ref["prev_low"], daily_ref["prev_close"])
+        scores.update({"P": cpr["P"], "BC": cpr["BC"], "TC": cpr["TC"]})
+        virgin_break = is_virgin_cpr_break(side, recent_bars, cpr)
+        if not virgin_break:
+            # Not strictly required post time-window removal; keep as informational only
+            reasons.append("CPR break not virgin")
+    else:
+        reasons.append("Missing previous day data for CPR")
+        confirmed = False
 
     # Price Action (required for both morning and afternoon)
     pa_confirmed = False
@@ -277,23 +260,20 @@ def confirm_signal(
 
     # Determine if virgin CPR break occurred (for morning)
     virgin_cpr_confirmed = False
-    if time_window == "morning" and cpr:
+    if cpr:
         virgin_cpr_confirmed = is_virgin_cpr_break(side, recent_bars, cpr)
 
     # Adaptive Filter Counting (Pine Script style)
     active_filters = count_active_filters(side, scores, recent_bars, symbol, ema_state, pa_confirmed, virgin_cpr_confirmed)
-    required_filters = get_required_filters(time_window)
-    
-    if active_filters < required_filters:
-        confirmed = False
-        reasons.append(f"Insufficient active filters: {active_filters}/{required_filters} required for {time_window}")
+    required_filters = get_required_filters()
+    # With threshold disabled (0), we don't gate by filter count.
 
     final = {
         "confirmed": confirmed and pa_confirmed,
         "reasons": reasons,
         "scores": scores,
         "rsi": rsi_values[-1] if rsi_values else None,
-        "cpr": cpr if time_window == "morning" else None,
+    "cpr": cpr,
         "active_filters": active_filters,
         "required_filters": required_filters
     }

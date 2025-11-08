@@ -40,14 +40,21 @@ class ServiceBase:
     websocket subscription and tick -> bar handling, and conditional candle persistence.
     Subclasses implement build_strategy() to supply strategy instance.
     """
-    def __init__(self, primary_tf: str, confirm_tf: str, short_period: int, long_period: int, warmup_bars: int, persist_confirm_candles: bool = False):
+    def __init__(self, primary_tf: str, confirm_tf: str, short_period: int, long_period: int, warmup_bars: int, persist_confirm_candles: bool = False, enable_ema: bool = True):
+        """Initialize the base service.
+
+        enable_ema allows subclasses (e.g. OpeningRangeOptionsService) to disable all EMA state
+        initialization & updates for performance/simplicity.
+        """
         self.primary_tf = primary_tf
         self.confirm_tf = confirm_tf
         self.short_period = short_period
         self.long_period = long_period
         self.warmup_bars = warmup_bars
         self.persist_confirm_candles = persist_confirm_candles
+        self.enable_ema = enable_ema
 
+        # Core infra components
         self.db = Database(settings.DATABASE_URL)
         access_token = get_token()
         api_key = settings.UPSTOX_API_KEY
@@ -55,15 +62,19 @@ class ServiceBase:
         self.rest = BrokerRest(api_key, api_secret, access_token=access_token)
         self.ws = BrokerWS(access_token)
         self.bar_builder = BarBuilder()
-        self.ema_primary: Dict[str, EMAState] = {}
-        self.ema_confirm: Dict[str, EMAState] = {}
+
+        # EMA state maps (remain empty if EMA disabled)
+        self.ema_primary: Dict[str, EMAState] = {} if enable_ema else {}
+        self.ema_confirm: Dict[str, EMAState] = {} if enable_ema else {}
+
         self.symbol_to_key: Dict[str, str] = {}
         self.executor = Executor(self.rest, self.db)
         self.notifier = Notifier(settings.NOTIFIER_WEBHOOK)
         self.strategy = None
         self._running = False
         self.options_manager = None  # Will hold OptionsManager if enabled
-        self.day_candles = []
+        # Daily candles cache per symbol (dict). Was initialized as list previously which broke symbol lookups.
+        self.day_candles: Dict[str, List[Dict[str, Any]]] = {}
 
     async def start(self, instrument_input=None):
         if self._running:
@@ -80,44 +91,45 @@ class ServiceBase:
             key = inst['instrument_key']
 
             # load day candles for confirmation context
-            result = await self.load_day_candles(symbol, key)
-            if result is not None:
-                self.day_candles[symbol] = result
+            try:
+                result = await self.load_day_candles(symbol, key)
+                if result:
+                    self.day_candles[symbol] = result
+            except Exception as e:
+                logger.warning("Failed loading day candles for %s: %s", symbol, e)
 
             # Regular warmup
             self.symbol_to_key[symbol] = key
-            candles_primary = await self.db.load_candles(symbol, key, self.primary_tf, limit=self.warmup_bars)
-            if not candles_primary:
-                candles_primary = await self.rest.fetch_historical(key, self.primary_tf, limit=self.warmup_bars)
-                if candles_primary:
-                    for idx, ic in enumerate(candles_primary):
-                        candles_primary[idx] = {
+            candles_primary: List[dict] = []
+            if self.enable_ema and self.warmup_bars > 0:
+                candles_primary = await self.db.load_candles(symbol, key, self.primary_tf, limit=self.warmup_bars)
+                if not candles_primary:
+                    candles_primary = await self.rest.fetch_historical(key, self.primary_tf, limit=self.warmup_bars)
+                    if candles_primary:
+                        for idx, ic in enumerate(candles_primary):
+                            candles_primary[idx] = {
+                                'symbol': symbol,
+                                'instrument_key': key,
+                                'timeframe': self.primary_tf,
+                                **ic
+                            }
+                        await self.db.persist_candles_bulk(symbol, key, self.primary_tf, candles_primary)
+                intraday = await self.rest.fetch_intraday(key, self.primary_tf)
+                if intraday:
+                    await self.db.persist_candles_bulk(symbol, key, self.primary_tf, intraday)
+                    for idx, ic in enumerate(intraday):
+                        intraday[idx] = {
                             'symbol': symbol,
                             'instrument_key': key,
                             'timeframe': self.primary_tf,
                             **ic
                         }
-                    await self.db.persist_candles_bulk(symbol, key, self.primary_tf, candles_primary)
-            intraday = await self.rest.fetch_intraday(key, self.primary_tf)
-            if intraday:
-                await self.db.persist_candles_bulk(symbol, key, self.primary_tf, intraday)
-                # Deduplicate by timestamp string (already normalized)
-                # Enrich each intraday candle with metadata for consistency
-                # Ensure metadata columns (symbol, instrument_key, timeframe) occupy positions 0,1,2
-                # by rebuilding each candle dict with ordered keys.
-                for idx, ic in enumerate(intraday):
-                    intraday[idx] = {
-                        'symbol': symbol,
-                        'instrument_key': key,
-                        'timeframe': self.primary_tf,
-                        **ic
-                    }
-                seen = {c['ts'] if isinstance(c, dict) else getattr(c, 'ts', None) for c in candles_primary}
-                for ic in intraday:
-                    if ic['ts'] not in seen:
-                        candles_primary.append(ic)
+                    seen = {c['ts'] if isinstance(c, dict) else getattr(c, 'ts', None) for c in candles_primary}
+                    for ic in intraday:
+                        if ic['ts'] not in seen:
+                            candles_primary.append(ic)
             candles_confirm: List[dict] = []
-            if self.confirm_tf != self.primary_tf:
+            if self.enable_ema and self.confirm_tf != self.primary_tf:
                 m_p = _minutes(self.primary_tf)
                 m_c = _minutes(self.confirm_tf)
                 if m_c % m_p == 0 and candles_primary:
@@ -148,14 +160,14 @@ class ServiceBase:
                         candles_confirm = valid[-self.warmup_bars:]
                     except Exception as e:
                         logger.warning("Confirm aggregation failed for %s: %s", symbol, e)
-            ema_p = EMAState(key, self.primary_tf, self.short_period, self.long_period)
-            ema_p.initialize_from_candles(candles_primary)
-            # Store EMA state keyed by human-readable symbol (not instrument_key) so later lookups using symbol work.
-            self.ema_primary[symbol] = ema_p
-            if self.confirm_tf != self.primary_tf:
-                ema_c = EMAState(key, self.confirm_tf, self.short_period, self.long_period)
-                ema_c.initialize_from_candles(candles_confirm)
-                self.ema_confirm[symbol] = ema_c
+            if self.enable_ema:
+                ema_p = EMAState(key, self.primary_tf, self.short_period, self.long_period)
+                ema_p.initialize_from_candles(candles_primary)
+                self.ema_primary[symbol] = ema_p
+                if self.confirm_tf != self.primary_tf:
+                    ema_c = EMAState(key, self.confirm_tf, self.short_period, self.long_period)
+                    ema_c.initialize_from_candles(candles_confirm)
+                    self.ema_confirm[symbol] = ema_c
         symbols = [i['symbol'] for i in instruments]
         await self.ws.subscribe(symbols)
         self.ws.on_tick = self._on_tick
@@ -187,15 +199,16 @@ class ServiceBase:
         if not self._running:
             return
         await self.ws.disconnect()
-        for symbol, state in self.ema_primary.items():
-            key = self.symbol_to_key.get(symbol, symbol)
-            await self.db.upsert_ema_state(symbol, key, self.primary_tf, state.short_period, state.short_ema)
-            await self.db.upsert_ema_state(symbol, key, self.primary_tf, state.long_period, state.long_ema)
-        if self.confirm_tf != self.primary_tf:
-            for symbol, state in self.ema_confirm.items():
+        if self.enable_ema:
+            for symbol, state in self.ema_primary.items():
                 key = self.symbol_to_key.get(symbol, symbol)
-                await self.db.upsert_ema_state(symbol, key, self.confirm_tf, state.short_period, state.short_ema)
-                await self.db.upsert_ema_state(symbol, key, self.confirm_tf, state.long_period, state.long_ema)
+                await self.db.upsert_ema_state(symbol, key, self.primary_tf, state.short_period, state.short_ema)
+                await self.db.upsert_ema_state(symbol, key, self.primary_tf, state.long_period, state.long_ema)
+            if self.confirm_tf != self.primary_tf:
+                for symbol, state in self.ema_confirm.items():
+                    key = self.symbol_to_key.get(symbol, symbol)
+                    await self.db.upsert_ema_state(symbol, key, self.confirm_tf, state.short_period, state.short_ema)
+                    await self.db.upsert_ema_state(symbol, key, self.confirm_tf, state.long_period, state.long_ema)
         await self.db.disconnect()
         self._running = False
         logger.info("Service stopped")
@@ -220,17 +233,24 @@ class ServiceBase:
         for symbol, tf, bar in closed:
             key = self.symbol_to_key.get(symbol, symbol)
             if tf == self.primary_tf:
-                ema_p = self.ema_primary.get(symbol)
-                if ema_p is None:
-                    ema_p = EMAState(symbol, self.primary_tf, self.short_period, self.long_period)
-                    ema_p.initialize_from_candles([])
-                    self.ema_primary[symbol] = ema_p
-                ema_p.update_with_close(bar.close)
-                ema_c = self.ema_confirm.get(symbol) if self.confirm_tf != self.primary_tf else None
+                ema_p = None
+                ema_c = None
+                if self.enable_ema:
+                    ema_p = self.ema_primary.get(symbol)
+                    if ema_p is None:
+                        ema_p = EMAState(symbol, self.primary_tf, self.short_period, self.long_period)
+                        ema_p.initialize_from_candles([])
+                        self.ema_primary[symbol] = ema_p
+                    ema_p.update_with_close(bar.close)
+                    if self.confirm_tf != self.primary_tf:
+                        ema_c = self.ema_confirm.get(symbol)
                 if self.strategy:
                     await self.strategy.on_bar_close(symbol, key, tf, bar, ema_p, ema_c)
                 await self.db.persist_candle(symbol, key, tf, bar)
             elif tf == self.confirm_tf and self.confirm_tf != self.primary_tf:
+                if not self.enable_ema:
+                    # Skip confirm timeframe processing entirely if EMA disabled
+                    continue
                 ema_c = self.ema_confirm.get(symbol)
                 if ema_c is None:
                     ema_c = EMAState(symbol, self.confirm_tf, self.short_period, self.long_period)
@@ -247,6 +267,7 @@ class ServiceBase:
             'running': self._running,
             'primary_tf': self.primary_tf,
             'confirm_tf': self.confirm_tf,
+            'ema_enabled': self.enable_ema,
             'symbols_primary': list(self.ema_primary.keys()),
             'symbols_confirm': list(self.ema_confirm.keys())
         }

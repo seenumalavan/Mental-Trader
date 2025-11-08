@@ -7,6 +7,7 @@ from src.config import settings
 from src.persistence.db import Database
 from src.services.strategies.scalping_service import ScalperService
 from src.services.strategies.intraday_service import IntradayService
+from src.services.strategies.opening_range_options_service import OpeningRangeOptionsService
 from src.services.maintenance.data_maintenance_service import DataMaintenanceService
 from src.api.data_maintenance_api import init_data_maintenance_service
 from src.api.router import api_router
@@ -38,6 +39,17 @@ def _bootstrap_services():
     except Exception as e:  # pragma: no cover - defensive
         print(f"DEBUG: Failed to create DataMaintenanceService: {e}")
         created['data_maintenance'] = None
+    # Opening range service (optional)
+    try:
+        if settings.OPENING_RANGE_ENABLED:
+            created['opening_range'] = OpeningRangeOptionsService()
+            print("DEBUG: OpeningRangeOptionsService created")
+        else:
+            created['opening_range'] = None
+            print("DEBUG: OpeningRangeOptionsService skipped (disabled)")
+    except Exception as e:  # pragma: no cover
+        print(f"DEBUG: Failed to create OpeningRangeOptionsService: {e}")
+        created['opening_range'] = None
     for name, svc in created.items():
         service_registry.register(name, svc)
     return created
@@ -120,6 +132,20 @@ async def lifespan(app: FastAPI):
                 logger.info("Data maintenance service started successfully")
             except Exception as e:  # pragma: no cover - defensive
                 logger.error(f"Failed to start data maintenance service: {e}")
+        # Optional auto-start opening range service
+        if settings.OPENING_RANGE_ENABLED:
+            token_info = get_token_expiry()
+            ors = service_registry._services.get('opening_range')
+            if ors and token_info.get('has_token') and not token_info.get('is_expired', True):
+                try:
+                    await ors.start(settings.AUTO_START_INTRADAY_INSTRUMENTS)
+                    logger.info("OPENING_RANGE_ENABLED: Opening range service started")
+                    record_startup_event("auto_start", "opening_range_started")
+                except Exception as e:  # pragma: no cover
+                    logger.error(f"Opening range auto start failed: {e}")
+                    record_startup_event("auto_start_error", "opening_range_failed", error=str(e))
+            else:
+                logger.warning("Opening range enabled but service unavailable or token invalid")
 
     print("LIFESPAN: Startup complete, yielding...")
     yield

@@ -1,5 +1,4 @@
-// Use IntelliSense to learn about possible attributes.
-// Hover to view descriptions of existing attributes.
+// Clean launch.json with Opening Range backtest configuration added.
 {
     "version": "0.2.0",
     "configurations": [
@@ -72,6 +71,27 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "Script: Backtest Opening Range",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/scripts/backtest_opening_range.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--symbol",
+                "${input:openingRangeSymbol}",
+                "--date",
+                "${input:openingRangeDate}",
+                "--mode",
+                "${input:openingRangeMode}",
+                "--timeframe",
+                "${input:openingRangeTimeframe}"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "OPENING_RANGE_ENABLED": "true"
+            }
         }
     ],
     "inputs": [
@@ -97,6 +117,41 @@
                 "diagnose"
             ],
             "default": "replay"
+        },
+        {
+            "id": "openingRangeSymbol",
+            "type": "promptString",
+            "description": "Enter symbol (e.g. NIFTY)",
+            "default": "NIFTY"
+        },
+        {
+            "id": "openingRangeDate",
+            "type": "promptString",
+            "description": "Enter date (YYYY-MM-DD)",
+            "default": "2025-01-17"
+        },
+        {
+            "id": "openingRangeMode",
+            "type": "pickString",
+            "description": "Select mode",
+            "options": [
+                "replay",
+                "range",
+                "diagnose",
+                "performance"
+            ],
+            "default": "replay"
+        },
+        {
+            "id": "openingRangeTimeframe",
+            "type": "pickString",
+            "description": "Primary timeframe",
+            "options": [
+                "1m",
+                "3m",
+                "5m"
+            ],
+            "default": "5m"
         }
     ]
 }

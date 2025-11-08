@@ -6,7 +6,7 @@ from src.engine.base_strategy import BaseStrategy
 from src.engine.signal_confirmation import confirm_signal
 from src.engine.trend_filter import higher_timeframe_trend_ok
 from src.execution.execution import Signal
-from src.utils.time_utils import get_time_window
+ # time window logic removed
 
 logger = logging.getLogger("intraday_strategy")
 
@@ -29,15 +29,7 @@ class IntradayStrategy(BaseStrategy):
         if timeframe != self.primary_tf:
             return
         
-        # Check time window
-        time_window = get_time_window(getattr(bar, 'ts', ''))
-        if time_window == "midday":
-            logger.debug(f"Intraday {symbol}: Skipping mid-day signal")
-            return
-        
-        if not self.service.can_trade(time_window):
-            logger.debug(f"Intraday {symbol}: Monthly trade limit reached for {time_window}")
-            return
+        # Time window gating removed
         
         prev_short = ema_primary.prev_short
         prev_long = ema_primary.prev_long
@@ -78,7 +70,7 @@ class IntradayStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Intraday {symbol}: No recent bars for BUY signal confirmation")
                         return
-                    result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, symbol=symbol, time_window=time_window)
+                    result = confirm_signal("BUY", ema_primary, recent_bars, daily_ref, symbol=symbol)
                     if not result["confirmed"]:
                         logger.info(f"Intraday BUY signal rejected for {symbol}: {result['reasons']}")
                         return
@@ -93,7 +85,7 @@ class IntradayStrategy(BaseStrategy):
                 if trade_underlying:
                     logger.debug(f"Intraday {symbol}: Executing underlying BUY order")
                     await self.service.executor.handle_signal(signal)
-                    self.service.increment_trade_count(time_window)
+                    # trade count per time window removed
                 await self.service.notifier.notify_signal(signal)
                 # Option signal publication (unified with IntradayStrategy)
                 if high_vol or is_index:
@@ -119,7 +111,7 @@ class IntradayStrategy(BaseStrategy):
                     if not recent_bars:
                         logger.warning(f"Intraday {symbol}: No recent bars for SELL signal confirmation")
                         return
-                    result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, symbol=symbol, time_window=time_window)
+                    result = confirm_signal("SELL", ema_primary, recent_bars, daily_ref, symbol=symbol)
                     if not result["confirmed"]:
                         logger.info(f"Intraday SELL signal rejected for {symbol}: {result['reasons']}")
                         return
@@ -134,7 +126,7 @@ class IntradayStrategy(BaseStrategy):
                 if trade_underlying:
                     logger.debug(f"Intraday {symbol}: Executing underlying SELL order")
                     await self.service.executor.handle_signal(signal)
-                    self.service.increment_trade_count(time_window)
+                    # trade count per time window removed
                 await self.service.notifier.notify_signal(signal)
                 # Option signal publication (unified with IntradayStrategy)
                 if high_vol or is_index:

@@ -12,6 +12,7 @@ A production-ready algorithmic trading system built with Python and FastAPI. Fea
 - **Risk Management**: Position sizing and daily loss limits
 - **Monitoring**: Health endpoints and notification webhooks
 - **Web Interface**: FastAPI-based REST API for control and monitoring
+- **Opening Range Options Breakout**: Optional service that forms first 15 minutes range and emits single confirmed option breakout signal (CPR, Price Action, OI change).
 
 ## Quick Start
 
@@ -178,6 +179,7 @@ The system includes tooling to inspect EMA crossover opportunities and correlate
 | `src/scripts/backtest_intraday.py` | Unified intraday: replay / performance modes | `python src/scripts/backtest_intraday.py --symbol NIFTY --date 2025-01-17 --mode replay` |
 | `src/scripts/diagnose_scalper_crossovers.py` | Detailed crossover vs signal diagnostic (per-bar) | `python src/scripts/diagnose_scalper_crossovers.py --symbol NIFTY --date 2025-01-17 --show-all` |
 | `src/scripts/backfill_historical.py` | Fetch & persist historical candles | `python src/scripts/backfill_historical.py --inputs NIFTY` |
+| `src/scripts/backtest_opening_range.py` | Opening range options breakout replay/performance | `python -m src.scripts.backtest_opening_range --symbol NIFTY --date 2025-01-17 --mode replay` |
 
 ### Shared Script Utilities
 
@@ -285,6 +287,39 @@ Key configuration parameters in `.env`:
 | `GAP_FILL_ENABLED` | Enable gap filling in historical data | `True` |
 | `CLEANUP_ENABLED` | Enable cleanup of old data | `True` |
 | `MAINTENANCE_INTERVAL_HOURS` | Interval for maintenance tasks in hours | `24` |
+| `OPENING_RANGE_ENABLED` | Enable Opening Range options breakout service | `False` |
+| `OPENING_RANGE_TIMEFRAME` | Timeframe for range bars (collect + breakout) | `5m` |
+| `OPENING_RANGE_RANGE_MINUTES` | Length of opening range collection window | `15` |
+| `OPENING_RANGE_LAST_TRADE_TIME` | HH:MM cutoff after which breakouts ignored | `09:45` |
+| `OPENING_RANGE_REQUIRE_CPR` | Require price above TC / below BC for confirmation | `True` |
+| `OPENING_RANGE_REQUIRE_PRICE_ACTION` | Require bullish/bearish pattern on breakout bar | `True` |
+| `OPENING_RANGE_REQUIRE_RSI_SLOPE` | Require RSI slope alignment | `False` |
+| `OPENING_RANGE_MIN_OI_CHANGE_PCT` | Minimum % OI change in relevant side (calls vs puts) | `8.0` |
+| `OPENING_RANGE_DEBOUNCE_SEC` | Debounce between detections on same bar | `5` |
+| `OPENING_RANGE_MAX_SIGNALS_PER_DAY` | Max option signals per trading day | `1` |
+
+### Opening Range Service Usage
+
+1. Set `OPENING_RANGE_ENABLED=true` in `.env`.
+2. (Optional) Adjust confirmation flags and OI threshold.
+3. Start the web app; service will auto-create during lifespan. To auto-start it with instruments use existing intraday instruments env (`AUTO_START_INTRADAY_INSTRUMENTS`) until dedicated variable added.
+4. The service emits only option signals (no underlying trades). Origin tag: `opening_range`.
+5. CPR requires prior daily candle fetch; ensure historical endpoint returns previous day OHLC.
+
+The service collects first `OPENING_RANGE_RANGE_MINUTES` worth of primary timeframe bars then waits for a close above range high (BUY) or below range low (SELL) before cutoff. Confirmation checks: CPR level alignment, price action pattern, RSI slope (optional), and option chain OI increase vs baseline snapshot captured immediately after range completes.
+
+#### Opening Range Backtest Script
+
+Replay a specific trading day for the opening range breakout logic without running the full API:
+
+```cmd
+python -m src.scripts.backtest_opening_range --symbol NIFTY --date 2025-01-17 --mode replay
+python -m src.scripts.backtest_opening_range --symbol NIFTY --date 2025-01-17 --mode range --output range.csv
+python -m src.scripts.backtest_opening_range --symbol NIFTY --date 2025-01-17 --mode performance --report perf.json
+python -m src.scripts.backtest_opening_range --symbol NIFTY --date 2025-01-17 --mode replay --disable-cpr --disable-pa --oi-threshold 5
+```
+
+Synthetic chain generation is used by default (no live token dependency) and inflates OI after breakout to allow confirmation; use `--live-chain` for real data if broker access available.
 
 ## Development
 
